@@ -1,0 +1,11 @@
+# Ignore everything
+*
+
+# Allow these folders
+!local/
+!mod/
+!blocks/
+!theme/
+
+# Allow gitignore itself
+!.gitignore
