@@ -1,11 +1,8 @@
-# Ignore everything
-*
-
-# Allow these folders
-!local/
-!mod/
-!blocks/
-!theme/
-
-# Allow gitignore itself
-!.gitignore
+config.php
+/moodledata/
+/cache/
+/localcache/
+/temp/
+/sessions/
+/node_modules/
+.DS_Store
