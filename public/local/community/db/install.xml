@@ -46,5 +46,29 @@
             </KEYS>
         </TABLE>
 
+        <TABLE NAME="local_community_userrep">
+        <FIELDS>
+            <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+            <FIELD NAME="reputation" TYPE="int" LENGTH="10" DEFAULT="0"/>
+        </FIELDS>
+        <KEYS>
+            <KEY NAME="primary" TYPE="primary" FIELDS="userid"/>
+        </KEYS>
+    </TABLE>
+
+    <TABLE NAME="local_community_tags">
+    <FIELDS>
+        <FIELD NAME="id" TYPE="int" SEQUENCE="true"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="100"/>
+    </FIELDS>
+    </TABLE>
+
+    <TABLE NAME="local_community_post_tags">
+        <FIELDS>
+            <FIELD NAME="postid" TYPE="int"/>
+            <FIELD NAME="tagid" TYPE="int"/>
+        </FIELDS>
+    </TABLE>
+
     </TABLES>
 </XMLDB>
