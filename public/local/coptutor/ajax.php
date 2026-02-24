@@ -14,21 +14,28 @@ $data = json_decode(file_get_contents("php://input"));
 $question = $data->message ?? '';
 $courseid = $data->courseid ?? 0;
 
-/* 1️⃣ Get user history from DB */
+/* 1️⃣ Get user history from DB (ordered oldest → newest) */
 $records = $DB->get_records('local_coptutor_qa', [
     'userid' => $USER->id,
     'courseid' => $courseid
-], 'timecreated ASC'); // order by time
+], 'timecreated ASC');
+
+/* 2️⃣ Keep only the last 2 Q&A */
+$lastqa = array_slice($records, -2, 2, true);
 
 $history = '';
-foreach ($records as $r) {
+foreach ($lastqa as $r) {
     $history .= "Q: {$r->question}\nA: {$r->answer}\n\n";
 }
 
-/* 2️⃣ Prepare POST for FastAPI */
+/* 3️⃣ Get course info for context */
+$course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
+$contextinfo = "Course: {$course->fullname}\nShortname: {$course->shortname}\nID: {$course->id}\nSummary: " . strip_tags($course->summary);
+
+/* 4️⃣ Prepare POST for FastAPI */
 $postdata = http_build_query([
     'question' => $question,
-    'context'  => "Course ID: " . $courseid,
+    'context'  => $contextinfo,
     'history'  => $history
 ]);
 
@@ -42,27 +49,8 @@ $options = [
 ];
 
 $apiurl = "http://127.0.0.1:8000/ask";
-$response = @file_get_contents($apiurl, false, stream_context_create($options));
+$context  = stream_context_create($options);
+$response = file_get_contents($apiurl, false, $context);
 
-/* 3️⃣ Handle API failure */
-if ($response === false) {
-    echo json_encode(["reply" => "⚠️ FastAPI service is offline"]);
-    exit;
-}
-
-/* 4️⃣ Decode response */
-$result = json_decode($response, true);
-$reply = $result['reply'] ?? 'No reply from AI';
-
-/* 5️⃣ Save QA into Moodle DB */
-$record = new stdClass();
-$record->userid = $USER->id;
-$record->courseid = $courseid;
-$record->question = $question;
-$record->answer = $reply;
-$record->timecreated = time();
-
-$DB->insert_record('local_coptutor_qa', $record);
-
-/* 6️⃣ Return to JS */
-echo json_encode(["reply" => $reply]);
+/* 5️⃣ Return JSON back to JS */
+echo $response;
