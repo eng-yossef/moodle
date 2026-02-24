@@ -1,5 +1,5 @@
 /**
- * Global Community AMD module.
+ * Global Community AMD module for Moodle 5.1.
  *
  * @module     local_community/community
  * @copyright  2026 Youssef Khaled
@@ -10,52 +10,62 @@ define([
     'jquery',
     'core/modal_factory',
     'core/modal_events',
-    'core/notification',
-    'core/ajax'
-], function($, ModalFactory, ModalEvents, Notification, Ajax) {
+    'core/notification'
+], function($, ModalFactory, ModalEvents, Notification) {
 
-    /**
-     * Internal state and selectors.
-     */
     const Selectors = {
         container: '#community-app',
         askBtn: '#ask-question-btn'
     };
 
     /**
-     * Render the post list using Bootstrap Card styling.
-     * * @param {Array} posts 
+     * Render the post list using Bootstrap 5 Card styling.
+     *
+     * @param {Array} posts Array of post objects from the backend.
      */
     function renderPosts(posts) {
         let html = `
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="h4">Community Discussions</h2>
-                <button id="ask-question-btn" class="btn btn-primary">
-                    <i class="fa fa-plus-circle"></i> Ask Question
+                <h2 class="h4 fw-bold text-dark">Community Discussions</h2>
+                <button id="ask-question-btn" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                    <i class="fa fa-plus me-2"></i>Ask Question
                 </button>
             </div>
-            <div class="community-posts-list">
+            <div class="row" id="posts-grid">
         `;
 
         if (posts.length === 0) {
-            html += `<div class="alert alert-info">No questions asked yet. Be the first!</div>`;
+            html += `
+                <div class="col-12 text-center py-5">
+                    <div class="alert alert-light border-dashed">
+                        No discussions yet. Start the conversation!
+                    </div>
+                </div>`;
         }
 
-        posts.forEach(function(p) {
+        posts.forEach(p => {
             html += `
-                <div class="card mb-3 shadow-sm">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
-                            <h5 class="card-title mb-0">
-                                <a href="${M.cfg.wwwroot}/local/community/pages/post.php?id=${p.id}" class="text-decoration-none">
-                                    ${p.title}
-                                </a>
-                            </h5>
-                            <span class="badge badge-pill badge-light border">${p.votes} votes</span>
+                <div class="col-12 mb-3">
+                    <div class="card h-100 border-0 shadow-sm transition">
+                        <div class="card-body d-flex align-items-center">
+                            <div class="vote-count text-center me-4 border-end pe-4" style="min-width: 80px;">
+                                <span class="d-block h4 mb-0 fw-bold text-primary">${p.votes}</span>
+                                <small class="text-muted text-uppercase small fw-semibold">Votes</small>
+                            </div>
+                            <div class="post-content">
+                                <h5 class="card-title mb-1">
+                                    <a href="${M.cfg.wwwroot}/local/community/pages/post.php?id=${p.id}"
+                                       class="text-decoration-none text-dark stretched-link">
+                                        ${p.title}
+                                    </a>
+                                </h5>
+                                <p class="card-text small text-muted mb-0">
+                                    <span class="me-2">
+                                        <i class="fa fa-user-circle me-1"></i>${p.firstname} ${p.lastname}
+                                    </span>
+                                </p>
+                            </div>
                         </div>
-                        <p class="card-text text-muted small">
-                            <i class="fa fa-user-circle"></i> ${p.firstname} ${p.lastname}
-                        </p>
                     </div>
                 </div>
             `;
@@ -66,55 +76,54 @@ define([
     }
 
     /**
-     * Load posts via AJAX.
+     * Fetch posts from the server.
      */
     function loadPosts() {
-        fetch(M.cfg.wwwroot + '/local/community/ajax/get_posts.php')
+        fetch(`${M.cfg.wwwroot}/local/community/ajax/get_posts.php`)
             .then(res => res.json())
-            .then(posts => renderPosts(posts))
-            .catch(Notification.exception);
+            .then(res => {
+                renderPosts(res);
+            }).catch(Notification.exception);
     }
 
     /**
-     * Create the Modal Form.
+     * Create and initialize the Modal for asking questions.
      */
     function initModal() {
         ModalFactory.create({
             type: ModalFactory.types.SAVE_CANCEL,
             title: 'Ask a New Question',
             body: `
-                <form id="add-post-form">
-                    <div class="form-group">
-                        <label for="post-title">Question Title</label>
-                        <input type="text" class="form-control" id="post-title" placeholder="What's on your mind?" required>
+                <div class="p-2">
+                    <div class="mb-3">
+                        <label for="post-title" class="form-label fw-bold">Title</label>
+                        <input type="text" class="form-control shadow-none" id="post-title"
+                               placeholder="e.g. How do I use the new Moodle 5.1 Gradebook?">
                     </div>
-                    <div class="form-group mt-3">
-                        <label for="post-content">Description</label>
-                        <textarea class="form-control" id="post-content" rows="4" required></textarea>
+                    <div class="mb-3">
+                        <label for="post-content" class="form-label fw-bold">Details</label>
+                        <textarea class="form-control shadow-none" id="post-content" rows="5"
+                                  placeholder="Explain your question in detail..."></textarea>
                     </div>
-                </form>
+                </div>
             `,
-            buttons: {
-                save: 'Post Question'
-            }
-        }).then(function(modal) {
-            const root = modal.getRoot();
-
-            // Handle the click on our custom "Ask" button to show modal
-            $(document).on('click', Selectors.askBtn, function(e) {
+            buttons: {save: 'Post Question'}
+        }).then(modal => {
+            $(document).on('click', Selectors.askBtn, e => {
                 e.preventDefault();
                 modal.show();
             });
 
-            // Handle Save button click
-            root.on(ModalEvents.save, function(e) {
-                e.preventDefault();
-                
-                const title = root.find('#post-title').val();
-                const content = root.find('#post-content').val();
+            modal.getRoot().on(ModalEvents.save, e => {
+                const title = $('#post-title').val();
+                const content = $('#post-content').val();
 
                 if (!title || !content) {
-                    Notification.alert('Error', 'Please fill in all fields', 'OK');
+                    e.preventDefault();
+                    Notification.addNotification({
+                        message: 'Both fields are required',
+                        type: 'error'
+                    });
                     return;
                 }
 
@@ -124,32 +133,28 @@ define([
     }
 
     /**
-     * Submit the post to the server.
+     * Submit the post data to the server.
+     *
+     * @param {string} title The title of the post.
+     * @param {string} content The body of the post.
+     * @param {Object} modal The modal instance.
      */
     function submitPost(title, content, modal) {
-        fetch(M.cfg.wwwroot + '/local/community/ajax/create_post.php', {
+        fetch(`${M.cfg.wwwroot}/local/community/ajax/create_post.php`, {
             method: 'POST',
-            body: JSON.stringify({
-                title: title,
-                content: content,
-                posttype: 'question'
-            })
-        })
-        .then(() => {
+            body: JSON.stringify({title, content, posttype: 'question'})
+        }).then(() => {
             modal.hide();
-            // Clear inputs for next time
-            modal.getRoot().find('#add-post-form')[0].reset();
             loadPosts();
             Notification.addNotification({
-                message: 'Your question was posted successfully!',
+                message: 'Question posted!',
                 type: 'success'
             });
-        })
-        .catch(Notification.exception);
+        });
     }
 
     return {
-        init: function() {
+        init: () => {
             loadPosts();
             initModal();
         }
