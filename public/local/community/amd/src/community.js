@@ -89,48 +89,77 @@ define([
     /**
      * Create and initialize the Modal for asking questions.
      */
-    function initModal() {
-        ModalFactory.create({
-            type: ModalFactory.types.SAVE_CANCEL,
-            title: 'Ask a New Question',
-            body: `
-                <div class="p-2">
-                    <div class="mb-3">
-                        <label for="post-title" class="form-label fw-bold">Title</label>
-                        <input type="text" class="form-control shadow-none" id="post-title"
-                               placeholder="e.g. How do I use the new Moodle 5.1 Gradebook?">
-                    </div>
-                    <div class="mb-3">
-                        <label for="post-content" class="form-label fw-bold">Details</label>
-                        <textarea class="form-control shadow-none" id="post-content" rows="5"
-                                  placeholder="Explain your question in detail..."></textarea>
-                    </div>
+function initModal() {
+    ModalFactory.create({
+        type: ModalFactory.types.SAVE_CANCEL,
+        title: 'Ask a New Question',
+        body: `
+            <div class="p-2">
+                <div class="mb-3">
+                    <label for="post-title" class="form-label fw-bold">Title</label>
+                    <input type="text" class="form-control shadow-none" id="post-title"
+                           placeholder="e.g. How do I use the new Moodle 5.1 Gradebook?">
+                    <div id="similar-questions" class="mt-2"></div>
                 </div>
-            `,
-            buttons: {save: 'Post Question'}
-        }).then(modal => {
-            $(document).on('click', Selectors.askBtn, e => {
-                e.preventDefault();
-                modal.show();
-            });
-
-            modal.getRoot().on(ModalEvents.save, e => {
-                const title = $('#post-title').val();
-                const content = $('#post-content').val();
-
-                if (!title || !content) {
-                    e.preventDefault();
-                    Notification.addNotification({
-                        message: 'Both fields are required',
-                        type: 'error'
-                    });
-                    return;
-                }
-
-                submitPost(title, content, modal);
-            });
+                <div class="mb-3">
+                    <label for="post-content" class="form-label fw-bold">Details</label>
+                    <textarea class="form-control shadow-none" id="post-content" rows="5"
+                              placeholder="Explain your question in detail..."></textarea>
+                </div>
+            </div>
+        `,
+        buttons: {save: 'Post Question'}
+    }).then(modal => {
+        $(document).on('click', Selectors.askBtn, e => {
+            e.preventDefault();
+            modal.show();
         });
-    }
+
+        // --- Similar Questions Feature ---
+        modal.getRoot().on('input', '#post-title', function() {
+            const title = $(this).val();
+            if (title.length < 3) {
+                $('#similar-questions').empty();
+                return;
+            }
+
+            fetch(M.cfg.wwwroot + '/local/community/ajax/similar.php?q=' + encodeURIComponent(title))
+                .then(res => res.json())
+                .then(function(data) {
+                    if (!data.length) {
+                        $('#similar-questions').html('<small>No similar questions found.</small>');
+                        return;
+                    }
+                    let html = '<h6>🤖 AI Similar Questions</h6><ul class="list-unstyled">';
+                    data.forEach(function(item) {
+                        html += `<li>
+                        <a href="${M.cfg.wwwroot}/local/community/pages/post.php?id=${item.id}">${item.title}</a>
+                        </li>`;
+                    });
+                    html += '</ul>';
+                    $('#similar-questions').html(html);
+                });
+        });
+        // ---------------------------------
+
+        modal.getRoot().on(ModalEvents.save, e => {
+            const title = $('#post-title').val();
+            const content = $('#post-content').val();
+
+            if (!title || !content) {
+                e.preventDefault();
+                Notification.addNotification({
+                    message: 'Both fields are required',
+                    type: 'error'
+                });
+                return;
+            }
+
+            submitPost(title, content, modal);
+        });
+    });
+}
+
 
     /**
      * Submit the post data to the server.
