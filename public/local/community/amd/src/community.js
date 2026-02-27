@@ -43,33 +43,51 @@ define([
                 </div>`;
         }
 
-        posts.forEach(p => {
-            html += `
-                <div class="col-12 mb-3">
-                    <div class="card h-100 border-0 shadow-sm transition">
-                        <div class="card-body d-flex align-items-center">
-                            <div class="vote-count text-center me-4 border-end pe-4" style="min-width: 80px;">
-                                <span class="d-block h4 mb-0 fw-bold text-primary">${p.votes}</span>
-                                <small class="text-muted text-uppercase small fw-semibold">Votes</small>
-                            </div>
-                            <div class="post-content">
-                                <h5 class="card-title mb-1">
-                                    <a href="${M.cfg.wwwroot}/local/community/pages/post.php?id=${p.id}"
-                                       class="text-decoration-none text-dark stretched-link">
-                                        ${p.title}
-                                    </a>
-                                </h5>
-                                <p class="card-text small text-muted mb-0">
-                                    <span class="me-2">
-                                        <i class="fa fa-user-circle me-1"></i>${p.firstname} ${p.lastname}
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
+     posts.forEach(p => {
+
+    const deleteBtn = p.can_delete ? `
+        <button class="btn btn-sm btn-danger delete-post ms-3"
+                data-id="${p.id}">
+            <i class="fa fa-trash"></i>
+        </button>
+    ` : '';
+
+    html += `
+        <div class="col-12 mb-3">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center">
+
+                    <div class="vote-count text-center me-4 border-end pe-4" style="min-width: 80px;">
+                        <span class="h4 fw-bold text-primary">${p.votes}</span>
+                        <small class="text-muted">Votes</small>
                     </div>
+
+                    <div class="vote-count text-center me-4 border-end pe-4" style="min-width: 80px;">
+                        <span class="h4 fw-bold text-primary">${p.answers}</span>
+                        <small class="text-muted">Answers</small>
+                    </div>
+
+                    <div class="post-content flex-grow-1">
+                        <h5>
+                            <a href="${M.cfg.wwwroot}/local/community/pages/post.php?id=${p.id}"
+                               class="text-dark text-decoration-none">
+                                ${p.title}
+                            </a>
+                        </h5>
+
+                        <small class="text-muted">
+                            <i class="fa fa-user-circle"></i>
+                            ${p.firstname} ${p.lastname}
+                        </small>
+                    </div>
+
+                    ${deleteBtn}
+
                 </div>
-            `;
-        });
+            </div>
+        </div>
+    `;
+});
 
         html += `</div>`;
         $(Selectors.container).html(html);
@@ -186,6 +204,41 @@ function initModal() {
         init: () => {
             loadPosts();
             initModal();
+            $(document).on('click', '.delete-post', function(e) {
+
+    e.preventDefault();
+
+    const id = $(this).data('id');
+
+    Notification.confirm(
+        'Delete post',
+        'Do you really want to delete this post?',
+        'Yes',
+        'Cancel',
+        () => {
+
+            fetch(`${M.cfg.wwwroot}/local/community/ajax/delete_post.php`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({
+                    postid: id,
+                    sesskey: M.cfg.sesskey
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+
+                if (data.status === 'success') {
+                    loadPosts();
+                } else {
+                    Notification.alert('Error', data.message, 'OK');
+                }
+
+            })
+            .catch(Notification.exception);
+        }
+    );
+});
         }
     };
 });
