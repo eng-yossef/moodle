@@ -28,33 +28,49 @@ define(['jquery', 'core/notification'], function($, Notification) {
             <h4 class="fw-bold mb-4">${answers.length} Answers</h4>
         `;
 
-        answers.forEach(a => {
-            const upDisabled = a.uservote === 1 ? 'disabled' : '';
-            const downDisabled = a.uservote === -1 ? 'disabled' : '';
+       answers.forEach(a => {
+    const upDisabled = a.uservote === 1 ? 'disabled' : '';
+    const downDisabled = a.uservote === -1 ? 'disabled' : '';
 
-            html += `
-                <div class="card border-0 shadow-sm mb-3">
-                    <div class="card-body d-flex">
-                        <div class="d-flex flex-column align-items-center me-4 bg-light rounded p-2"
-                             style="height: fit-content; min-width: 50px;">
-                            <button class="btn btn-link link-success p-0 vote-answer" 
-                                    data-id="${a.id}" data-value="1" ${upDisabled}>
-                                <i class="fa fa-chevron-up"></i>
-                            </button>
-                            <span class="fw-bold my-1">${a.votes}</span>
-                            <button class="btn btn-link link-danger p-0 vote-answer" 
-                                    data-id="${a.id}" data-value="-1" ${downDisabled}>
-                                <i class="fa fa-chevron-down"></i>
-                            </button>
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="mb-2">${a.content}</div>
-                            <div class="text-muted small">Answered by <strong>${a.firstname}</strong></div>
-                        </div>
+    html += `
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body d-flex">
+
+                <div class="d-flex flex-column align-items-center me-4 bg-light rounded p-2"
+                     style="height: fit-content; min-width: 50px;">
+
+                    <button class="btn btn-link link-success p-0 vote-answer" 
+                            data-id="${a.id}" data-value="1" ${upDisabled}>
+                        <i class="fa fa-chevron-up"></i>
+                    </button>
+
+                    <span class="fw-bold my-1">${a.votes}</span>
+
+                    <button class="btn btn-link link-danger p-0 vote-answer" 
+                            data-id="${a.id}" data-value="-1" ${downDisabled}>
+                        <i class="fa fa-chevron-down"></i>
+                    </button>
+
+                </div>
+
+                <div class="flex-grow-1">
+                    <div class="mb-2">${a.content}</div>
+                    <div class="text-muted small">
+                        Answered by <strong>${a.firstname}</strong>
                     </div>
                 </div>
-            `;
-        });
+
+                ${a.can_delete ? `
+                    <button class="btn btn-sm btn-danger delete-answer ms-2"
+                            data-id="${a.id}">
+                        <i class="fa fa-trash"></i>
+                    </button>
+                ` : ''}
+
+            </div>
+        </div>
+    `;
+});
 
         $('#post-data-container').html(html);
     }
@@ -128,6 +144,37 @@ define(['jquery', 'core/notification'], function($, Notification) {
             })
             .catch(Notification.exception);
         });
+
+
+$(document).on('click', '.delete-answer', function(e) {
+    e.preventDefault();
+
+    const id = $(this).data('id');
+
+    Notification.confirm(
+        'Delete',
+        'Do you really want to delete this answer?',
+        'Yes',
+        'Cancel',
+        () => {
+
+            fetch(`${M.cfg.wwwroot}/local/community/ajax/delete_answer.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    answerid: id,
+                    sesskey: M.cfg.sesskey
+                })
+            })
+            .then(res => res.json())
+            .then(() => loadPost())
+            .catch(Notification.exception);
+
+        }
+    );
+});
 
         // Handle answer text input changes
         $(document).on('input', '#answercontent', function() {

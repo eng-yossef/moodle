@@ -3,31 +3,18 @@ require('../../../config.php');
 require_login();
 require_sesskey();
 
-header('Content-Type: application/json');
-
 global $DB, $USER;
 
 $answerid = required_param('answerid', PARAM_INT);
 
-$answer = $DB->get_record('local_community_answers', [
-    'id' => $answerid,
-    'userid' => $USER->id
-]);
+$answer = $DB->get_record('local_community_answers', ['id' => $answerid], '*', MUST_EXIST);
+$post   = $DB->get_record('local_community_posts', ['id' => $answer->postid], '*', MUST_EXIST);
 
-if (!$answer) {
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Permission denied'
-    ]);
-    die();
+if ($answer->userid != $USER->id && $post->userid != $USER->id) {
+    throw new moodle_exception('nopermission', 'error');
 }
-
-$transaction = $DB->start_delegated_transaction();
 
 $DB->delete_records('local_community_votes', ['answerid' => $answerid]);
 $DB->delete_records('local_community_answers', ['id' => $answerid]);
 
-$transaction->allow_commit();
-
-echo json_encode(['status' => 'success']);
-die();
+echo json_encode(['status' => 'deleted']);

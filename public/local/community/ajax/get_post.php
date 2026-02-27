@@ -4,40 +4,86 @@ require_login();
 
 header('Content-Type: application/json');
 
-global $DB;
+global $DB, $USER;
 
 $postid = required_param('id', PARAM_INT);
 
+// سياق السيستم (تقدر تغيّره حسب البلاجين)
+$context = context_system::instance();
+
+// =============================
+// GET POST
+// =============================
 $post = $DB->get_record_sql("
-    SELECT p.*, u.firstname, u.lastname,
+    SELECT p.id,
+           p.userid,
+           p.title,
+           p.content,
+           p.timecreated,
+           u.firstname,
+           u.lastname,
            COALESCE(SUM(v.value), 0) AS votes,
-           MAX(CASE WHEN v.userid = ? THEN v.value ELSE NULL END) AS uservote
+           MAX(CASE WHEN v.userid = :currentuserid THEN v.value ELSE 0 END) AS uservote
     FROM {local_community_posts} p
     JOIN {user} u ON u.id = p.userid
     LEFT JOIN {local_community_votes} v ON v.postid = p.id
-    WHERE p.id = ?
-    GROUP BY p.id, u.firstname, u.lastname
-", [$USER->id, $postid]);
-
+    WHERE p.id = :postid
+    GROUP BY p.id, p.userid, p.title, p.content, p.timecreated, u.firstname, u.lastname
+", [
+    'currentuserid' => $USER->id,
+    'postid' => $postid
+]);
 
 if (!$post) {
     echo json_encode(['error' => 'Post not found']);
     exit;
-    }
-    $answers = $DB->get_records_sql("
-        SELECT a.*, u.firstname, u.lastname,
-               COALESCE(SUM(v.value), 0) AS votes,
-               MAX(CASE WHEN v.userid = ? THEN v.value ELSE NULL END) AS uservote
-        FROM {local_community_answers} a
-        JOIN {user} u ON u.id = a.userid
-        LEFT JOIN {local_community_votes} v ON v.answerid = a.id
-        WHERE a.postid = ?
-        GROUP BY a.id, u.firstname, u.lastname
-        ORDER BY a.timecreated ASC
-    ", [$USER->id, $postid]);
-    
+}
 
+// تنسيق المحتوى (مهم في Moodle)
+$post->content = format_text($post->content, FORMAT_HTML, ['context' => $context]);
 
+// =============================
+// GET ANSWERS
+// =============================
+$answers = $DB->get_records_sql("
+    SELECT a.id,
+           a.userid,
+           a.content,
+           a.timecreated,
+           u.firstname,
+           u.lastname,
+           COALESCE(SUM(v.value), 0) AS votes,
+           MAX(CASE WHEN v.userid = :currentuserid THEN v.value ELSE 0 END) AS uservote
+    FROM {local_community_answers} a
+    JOIN {user} u ON u.id = a.userid
+    LEFT JOIN {local_community_votes} v ON v.answerid = a.id
+    WHERE a.postid = :postid
+    GROUP BY a.id, a.userid, a.content, a.timecreated, u.firstname, u.lastname
+    ORDER BY a.timecreated ASC
+", [
+    'currentuserid' => $USER->id,
+    'postid' => $postid
+]);
+
+// =============================
+// ADD can_delete LOGIC
+// =============================
+foreach ($answers as $a) {
+
+    $a->content = format_text($a->content, FORMAT_HTML, ['context' => $context]);
+
+    $a->can_delete =
+        ($a->userid == $USER->id) ||   // صاحب الإجابة
+        ($post->userid == $USER->id);  // صاحب البوست
+
+    $a->uservote = (int)$a->uservote;
+    $a->votes    = (int)$a->votes;
+}
+
+$post->uservote = (int)$post->uservote;
+$post->votes    = (int)$post->votes;
+
+// =============================
 echo json_encode([
     'post' => $post,
     'answers' => array_values($answers)
