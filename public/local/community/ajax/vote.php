@@ -2,16 +2,16 @@
 require('../../../config.php');
 require_login();
 
-header('Content-Type: application/json');
+require_sesskey();
+
+$postid   = optional_param('postid', 0, PARAM_INT);
+$answerid = optional_param('answerid', 0, PARAM_INT);
+$value    = optional_param('value', 0, PARAM_INT);
+header('Content-Type: application/x-www-form-urlencoded');
 
 global $DB, $USER;
 
-// Read incoming JSON
-$data = json_decode(file_get_contents("php://input"));
 
-$postid   = isset($data->postid) ? (int)$data->postid : null;
-$answerid = isset($data->answerid) ? (int)$data->answerid : null;
-$value    = isset($data->value) ? (int)$data->value : 0;
 
 if (!$value || (!$postid && !$answerid)) {
     echo json_encode(['status' => 'error', 'message' => 'Invalid vote data']);

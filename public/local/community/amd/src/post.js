@@ -90,16 +90,55 @@ define(['jquery', 'core/notification'], function($, Notification) {
             container.find('.vote-answer').prop('disabled', true);
 
             fetch(`${M.cfg.wwwroot}/local/community/ajax/vote.php`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+        answerid: answerId,
+        value: value,
+        postid: currentPostId,
+        sesskey: M.cfg.sesskey
+    })
+})
+.then(() => loadPost())
+.catch(Notification.exception);
+        });
+
+        //addanswer
+        $(document).on('click', '#addanswer', function(e) {
+            e.preventDefault();
+            const content = $('#answercontent').val();
+            if (!content.trim()) {
+                Notification.addNotification({
+                    message: 'Please enter an answer.',
+                    type: 'error'
+                });
+                return;
+            }
+
+            fetch(`${M.cfg.wwwroot}/local/community/ajax/create_answer.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ answerid: answerId, value: value })
+                body: JSON.stringify({ postid: currentPostId, content: content })
             })
             .then(() => {
-                // Reload post to refresh votes and re-apply correct disabled state
-                loadPost();
+                $('#answercontent').val('');
+                loadPost(); // Reload post to show new answer
             })
             .catch(Notification.exception);
         });
+
+        // Handle answer text input changes
+        $(document).on('input', '#answercontent', function() {
+            const content = $(this).val();
+            if (content.trim().length > 0) {
+                $('#addanswer').prop('disabled', false);
+            } else {
+                $('#addanswer').prop('disabled', true);
+            }
+        });
+
     }
 
     return { init: init };
