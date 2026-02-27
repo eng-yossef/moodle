@@ -54,7 +54,7 @@
         <KEYS>
             <KEY NAME="primary" TYPE="primary" FIELDS="userid"/>
         </KEYS>
-    </TABLE>
+     </TABLE>
 
     <TABLE NAME="local_community_tags">
     <FIELDS>
