@@ -29,16 +29,21 @@ define(['jquery', 'core/notification'], function($, Notification) {
         `;
 
         answers.forEach(a => {
+            const upDisabled = a.uservote === 1 ? 'disabled' : '';
+            const downDisabled = a.uservote === -1 ? 'disabled' : '';
+
             html += `
                 <div class="card border-0 shadow-sm mb-3">
                     <div class="card-body d-flex">
                         <div class="d-flex flex-column align-items-center me-4 bg-light rounded p-2"
                              style="height: fit-content; min-width: 50px;">
-                            <button class="btn btn-link link-success p-0 vote-answer" data-id="${a.id}" data-value="1">
+                            <button class="btn btn-link link-success p-0 vote-answer" 
+                                    data-id="${a.id}" data-value="1" ${upDisabled}>
                                 <i class="fa fa-chevron-up"></i>
                             </button>
                             <span class="fw-bold my-1">${a.votes}</span>
-                            <button class="btn btn-link link-danger p-0 vote-answer" data-id="${a.id}" data-value="-1">
+                            <button class="btn btn-link link-danger p-0 vote-answer" 
+                                    data-id="${a.id}" data-value="-1" ${downDisabled}>
                                 <i class="fa fa-chevron-down"></i>
                             </button>
                         </div>
@@ -64,59 +69,38 @@ define(['jquery', 'core/notification'], function($, Notification) {
             .catch(Notification.exception);
     }
 
-    return {
-        /**
-         * Initialize the post page logic.
-         *
-         * @param {number} postid
-         */
-        init: function(postid) {
-            currentPostId = postid;
-            loadPost();
+    /**
+     * Initialize the post page logic.
+     *
+     * @param {Number} postid The post ID.
+     */
+    function init(postid) {
+        currentPostId = postid;
+        loadPost();
 
-            $(document).on('click', '#addanswer', function(e) {
-                e.preventDefault();
+        // Handle voting
+        $(document).on('click', '.vote-answer', function(e) {
+            e.preventDefault();
+            const btn = $(this);
+            const answerId = btn.data('id');
+            const value = btn.data('value');
 
-                // Force Moodle editors (Atto/TinyMCE) to sync content back to the textarea.
-                if (window.tinyMCE) {
-                    window.tinyMCE.triggerSave();
-                }
+            // Disable both buttons immediately to prevent multiple clicks
+            const container = btn.closest('.d-flex.flex-column');
+            container.find('.vote-answer').prop('disabled', true);
 
-                const content = $('#answercontent').val();
+            fetch(`${M.cfg.wwwroot}/local/community/ajax/vote.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answerid: answerId, value: value })
+            })
+            .then(() => {
+                // Reload post to refresh votes and re-apply correct disabled state
+                loadPost();
+            })
+            .catch(Notification.exception);
+        });
+    }
 
-                if (!content || content.trim() === '') {
-                    Notification.alert('Error', 'Please enter an answer.', 'OK');
-                    return;
-                }
-
-                fetch(`${M.cfg.wwwroot}/local/community/ajax/create_answer.php`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({postid: currentPostId, content: content})
-                })
-                .then(() => {
-                    // Reset the editor content.
-                    $('#answercontent').val('');
-                    if (window.tinyMCE && window.tinyMCE.activeEditor) {
-                        window.tinyMCE.activeEditor.setContent('');
-                    }
-                    loadPost();
-                    Notification.addNotification({message: 'Answer added!', type: 'success'});
-                })
-                .catch(Notification.exception);
-            });
-
-            $(document).on('click', '.vote-answer', function() {
-                fetch(`${M.cfg.wwwroot}/local/community/ajax/vote.php`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        answerid: $(this).data('id'),
-                        postid: currentPostId,
-                        value: $(this).data('value')
-                    })
-                }).then(loadPost);
-            });
-        }
-    };
+    return { init: init };
 });
