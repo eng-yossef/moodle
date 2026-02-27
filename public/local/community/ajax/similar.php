@@ -6,12 +6,31 @@ header('Content-Type: application/json');
 
 $q = required_param('q', PARAM_TEXT);
 
-// For now, return dummy data.
-// Later: call FastAPI → embeddings → semantic search.
-$similar = [
-    ['id' => 1, 'title' => 'How to integrate AI chatbot in Moodle?'],
-    ['id' => 2, 'title' => 'Best practices for Atto editor plugins'],
-    ['id' => 3, 'title' => 'Troubleshooting AJAX in local plugins'],
-];
+// FastAPI endpoint URL (adjust to your server/port)
+$fastapi_url = 'http://127.0.0.1:8000/similar?q=' . urlencode($q);
 
-echo json_encode($similar);
+// Call FastAPI
+$options = [
+    'http' => [
+        'method' => 'GET',
+        'header' => "Accept: application/json\r\n"
+    ]
+];
+$context = stream_context_create($options);
+$response = @file_get_contents($fastapi_url, false, $context);
+
+if ($response === false) {
+    echo json_encode(['error' => 'FastAPI service unavailable']);
+    exit;
+}
+
+// Decode FastAPI response
+$data = json_decode($response, true);
+
+// Ensure we return a proper array
+if (!is_array($data)) {
+    echo json_encode(['error' => 'Invalid response from FastAPI']);
+    exit;
+}
+
+echo json_encode($data);
