@@ -1,32 +1,56 @@
 <?php
 require('../../../config.php');
 require_login();
+require_sesskey();
+
+use local_community\reputation_manager;
 
 header('Content-Type: application/json');
 
 global $DB, $USER;
 
-// Read incoming JSON
-$data = json_decode(file_get_contents("php://input"));
+try {
 
-// Validate input
-$postid = isset($data->postid) ? (int)$data->postid : 0;
-$content = isset($data->content) ? clean_param($data->content, PARAM_RAW) : '';
+    $data = json_decode(file_get_contents("php://input"));
 
-if ($postid <= 0 || empty($content)) {
-    echo json_encode(['status' => 'error', 'message' => 'Invalid input']);
-    exit;
+    $postid  = isset($data->postid) ? (int)$data->postid : 0;
+    $content = isset($data->content) ? clean_param($data->content, PARAM_RAW) : '';
+
+    if ($postid <= 0 || empty($content)) {
+        throw new moodle_exception('Invalid input');
+    }
+
+    // Ensure post exists
+    $post = $DB->get_record('local_community_posts', ['id' => $postid], '*', MUST_EXIST);
+
+    // -------------------------
+    // Create answer
+    // -------------------------
+    $answer = (object)[
+        'postid'      => $postid,
+        'userid'      => $USER->id,
+        'content'     => $content,
+        'timecreated' => time(),
+        'votes'       => 0
+    ];
+
+    $answerid = $DB->insert_record('local_community_answers', $answer);
+
+    // -------------------------
+    // ✅ Reputation (direct add_points)
+    // -------------------------
+    // 5 points per answer, badges checked inside add_points
+    reputation_manager::add_points($USER->id, 5, 'answer_created', $answerid);
+
+    echo json_encode([
+        'status'   => 'ok',
+        'answerid' => $answerid
+    ]);
+
+} catch (Throwable $e) {
+
+    echo json_encode([
+        'status'  => 'error',
+        'message' => $e->getMessage()
+    ]);
 }
-
-// Build answer record
-$answer = new stdClass();
-$answer->postid = $postid;
-$answer->userid = $USER->id;
-$answer->content = $content; // HTML from editor
-$answer->timecreated = time();
-$answer->votes = 0; // default votes field
-
-// Insert into DB
-$DB->insert_record('local_community_answers', $answer);
-
-echo json_encode(['status' => 'ok']);

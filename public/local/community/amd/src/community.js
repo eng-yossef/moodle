@@ -75,10 +75,24 @@ define([
                             </a>
                         </h5>
 
-                        <small class="text-muted">
-                            <i class="fa fa-user-circle"></i>
-                            ${p.firstname} ${p.lastname}
-                        </small>
+                        <small class="text-muted d-block">
+    <i class="fa fa-user-circle"></i>
+    ${p.firstname} ${p.lastname}
+</small>
+
+<small class="text-warning fw-bold d-block">
+    ⭐ ${p.reputation}
+</small>
+
+<div class="mt-1">
+    ${
+        p.badges.map(b =>
+            `<span class="badge bg-light text-dark border me-1">
+                <i class="fa ${b.icon} text-warning"></i> ${b.name}
+            </span>`
+        ).join('')
+    }
+</div>
                     </div>
 
                     ${deleteBtn}
