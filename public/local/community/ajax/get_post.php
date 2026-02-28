@@ -6,9 +6,12 @@ header('Content-Type: application/json');
 
 global $DB, $USER;
 
+use local_community\badge_manager;
+
+// Get post ID
 $postid = required_param('id', PARAM_INT);
 
-// سياق السيستم (تقدر تغيّره حسب البلاجين)
+// Context for formatting
 $context = context_system::instance();
 
 // =============================
@@ -39,8 +42,20 @@ if (!$post) {
     exit;
 }
 
-// تنسيق المحتوى (مهم في Moodle)
+// Format content
 $post->content = format_text($post->content, FORMAT_HTML, ['context' => $context]);
+
+// =============================
+// GET REPUTATION AND BADGES FOR POST AUTHOR
+// =============================
+$post->reputation = (int) $DB->get_field('local_community_reputation', 'points', ['userid' => $post->userid]);
+
+$post->badges = array_values($DB->get_records_sql("
+    SELECT b.id, b.name, b.icon
+    FROM {local_community_user_badges} ub
+    JOIN {local_community_badges} b ON b.id = ub.badgeid
+    WHERE ub.userid = ?
+", [$post->userid]));
 
 // =============================
 // GET ANSWERS
@@ -65,21 +80,30 @@ $answers = $DB->get_records_sql("
     'postid' => $postid
 ]);
 
-// =============================
-// ADD can_delete LOGIC
-// =============================
+// Add can_delete, format content, reputation & badges for each answer
 foreach ($answers as $a) {
 
     $a->content = format_text($a->content, FORMAT_HTML, ['context' => $context]);
 
     $a->can_delete =
-        ($a->userid == $USER->id) ||   // صاحب الإجابة
-        ($post->userid == $USER->id);  // صاحب البوست
+        ($a->userid == $USER->id) ||   // Owner of answer
+        ($post->userid == $USER->id);  // Owner of post
 
     $a->uservote = (int)$a->uservote;
     $a->votes    = (int)$a->votes;
+
+    // Reputation and badges for answer author
+    $a->reputation = (int) $DB->get_field('local_community_reputation', 'points', ['userid' => $a->userid]);
+
+     $a->badges = array_values($DB->get_records_sql("
+        SELECT b.id, b.name, b.icon
+        FROM {local_community_user_badges} ub
+        JOIN {local_community_badges} b ON b.id = ub.badgeid
+        WHERE ub.userid = ?
+    ", [$a->userid]));
 }
 
+// Post vote info
 $post->uservote = (int)$post->uservote;
 $post->votes    = (int)$post->votes;
 
