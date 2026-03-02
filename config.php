@@ -174,6 +174,7 @@ $CFG->dboptions = [
 // http://docs.moodle.org/en/masquerading
 
 $CFG->wwwroot   = 'http://moodle.local';
+// $CFG->wwwroot   = 'http://localhost/moodle';
 //=========================================================================
 // 3. DATA FILES LOCATION
 //=========================================================================
