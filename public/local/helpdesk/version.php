@@ -24,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026030104;
+$plugin->version   = 2026030106;
 $plugin->requires  = 2025092600;
 $plugin->component = 'local_helpdesk';
 $plugin->maturity  = MATURITY_STABLE;

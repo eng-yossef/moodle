@@ -34,7 +34,7 @@ $PAGE->set_title(get_string('createticket', 'local_helpdesk'));
 $PAGE->set_heading(get_string('createticket', 'local_helpdesk'));
 $PAGE->set_pagelayout('standard');
 
-require_capability('local/helpdesk:submitticket', $context);
+// require_capability('local/helpdesk:submitticket', $context);
 
 // Enforce max 3 open tickets.
 $opencount = $DB->count_records_select(

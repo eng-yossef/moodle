@@ -103,5 +103,47 @@ function xmldb_local_helpdesk_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026030103, 'local', 'helpdesk');
     }
 
+    // New version: Create FAQ Table and Insert Initial Data.
+    if ($oldversion < 2026030106) {
+
+        // Define table local_helpdesk_faq.
+        $table = new xmldb_table('local_helpdesk_faq');
+
+        // Adding fields to table local_helpdesk_faq.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('question', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('answer', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('keywords', XMLDB_TYPE_TEXT, null, null, null, null, null);
+
+        // Adding keys to table local_helpdesk_faq.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        // Conditionally create the table.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Initial Data Seeding.
+        $faqdata = [
+            ['q' => 'How do I log in or reset my password?', 'k' => ['login', 'sign in', 'password', 'reset password'], 'a' => 'If you cannot log in, use "Forgotten your username or password?" on the login page. If you still cannot access your account, I can create a ticket for technical support.'],
+            ['q' => 'How do I enrol in a course?', 'k' => ['enrol', 'enroll', 'course access', 'join course'], 'a' => 'To join a course, open the course catalog and select the course. If an enrolment key is required, ask your instructor for the key.'],
+            ['q' => 'How do I submit an assignment?', 'k' => ['assignment', 'submit', 'upload'], 'a' => 'Open your course, go to the assignment activity, and click "Add submission". Upload your file and confirm submission before the deadline.'],
+            ['q' => 'Where can I see my grades?', 'k' => ['grade', 'result', 'marks'], 'a' => 'You can view your grades from your profile menu or by opening the course gradebook. Some grades appear only after teachers release them.'],
+            ['q' => 'Why is the site slow or not loading?', 'k' => ['browser', 'cache', 'slow', 'not loading'], 'a' => 'Please try clearing your browser cache, then reload the page. If the issue remains, test in another browser and I can raise a ticket with your details.'],
+            ['q' => 'Is there a mobile app?', 'k' => ['mobile', 'app'], 'a' => 'You can use the Moodle mobile app by selecting this site URL and signing in with your normal account credentials.'],
+            ['q' => 'How do I contact support?', 'k' => ['contact', 'support', 'help'], 'a' => 'You are already in Helpdesk. Ask me your issue and if I cannot solve it, I will automatically create a ticket for technical support.'],
+        ];
+
+        foreach ($faqdata as $data) {
+            $record = new stdClass();
+            $record->question = $data['q'];
+            $record->answer   = $data['a'];
+            $record->keywords = implode(', ', $data['k']); // Convert array to string for DB.
+            $DB->insert_record('local_helpdesk_faq', $record);
+        }
+
+        upgrade_plugin_savepoint(true, 2026030106, 'local', 'helpdesk');
+    }
+
     return true;
 }
