@@ -125,3 +125,17 @@ $string['invalidticket']         = 'Invalid ticket.';
 $string['invalidchat']           = 'Invalid chat session.';
 $string['invalidmessage']        = 'Message cannot be empty.';
 $string['accessdenied']          = 'Access denied.';
+
+
+
+// Chatbot.
+$string['chatbottitle']          = 'Customer Service Chatbot';
+$string['chatbotintro']          = 'Ask any question related to this website. If the chatbot cannot answer, it will create a technical support ticket for you.';
+$string['chatbotquestionlabel']  = 'Your question';
+$string['chatbotaskbutton']      = 'Ask chatbot';
+$string['chatbotanswerlabel']    = 'Chatbot response';
+$string['chatbotemptyquestion']  = 'Please enter a question before submitting.';
+$string['chatbotmaxopen']        = 'I could not answer and cannot create a new ticket because you already have 3 open tickets.';
+$string['chatbotticketsubject']  = 'Chatbot escalation: user support request';
+$string['chatbotticketdesc']     = '<p><strong>Escalated by chatbot.</strong></p><p>User question:</p><p>{$a}</p>';
+$string['chatbotfallbackcreated']= 'I could not answer this question, so I created support ticket #{$a}. A technical support agent will follow up with you soon.';

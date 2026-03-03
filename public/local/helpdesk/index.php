@@ -83,6 +83,7 @@ $templatedata = [
     'tickets'        => $ticketrows,
     'notickets'      => empty($ticketrows),
     'createurl'      => (new moodle_url('/local/helpdesk/create.php'))->out(false),
+    'chatboturl'     => (new moodle_url('/local/helpdesk/chatbot.php'))->out(false),
     'cancreate'      => ($opencount < 3),
     'maxopentickets' => get_string('maxopentickets', 'local_helpdesk', 3),
 ];
