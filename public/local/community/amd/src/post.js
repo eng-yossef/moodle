@@ -213,7 +213,7 @@ define(['jquery', 'core/notification'], function($, Notification) {
                 await fetch(`${M.cfg.wwwroot}/local/community/ajax/create_answer.php`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({postid: currentPostId, content: content})
+                    body: JSON.stringify({postid: currentPostId, content: content, sesskey: M.cfg.sesskey})
                 });
                 $(SELECTORS.answerInput).val('');
                 await loadPost();

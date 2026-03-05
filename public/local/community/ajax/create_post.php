@@ -59,6 +59,7 @@ try {
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlerr  = curl_error($ch);
     curl_close($ch);
+    
 
     if ($response === false || $httpcode !== 200) {
         debugging("FastAPI sync failed: http=$httpcode curl=$curlerr", DEBUG_DEVELOPER);

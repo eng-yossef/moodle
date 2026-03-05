@@ -53,7 +53,7 @@ class reputation_manager {
         }
 
         // 3️⃣ Check badges using badge_manager
-        badge_manager::check_all_badges($userid);
+        badge_manager::process_user($userid);
 
         return true;
     }
