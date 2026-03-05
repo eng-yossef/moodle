@@ -158,28 +158,143 @@ define([
     }
 
     /**
-     * Render leaderboard widget.
+ * Render a modern leaderboard UI.
+ *
+ * @param {Array} leaders Leaderboard users array.
+ */
+function renderLeaderboard(leaders) {
+    const container = $('#leaderboard-list');
+
+    if (!leaders.length) {
+        container.html(
+            '<div class="text-center p-4 text-muted">' +
+            'No activity this period.' +
+            '</div>'
+        );
+        return;
+    }
+
+    const topThree = leaders.slice(0, 3);
+    const others = leaders.slice(3);
+
+    let html =
+        '<div class="leaderboard-wrapper animate__animated animate__fadeIn">';
+
+    html += '<div class="row g-2 mb-4 text-center align-items-end">';
+
+    /**
+     * Render podium user.
      *
-     * @param {Array} leaders
+     * @param {Object} user User object.
+     * @param {number} rank User rank.
+     * @param {string} color Badge color.
+     * @param {string} icon FontAwesome icon.
+     * @returns {string} HTML string
      */
-    function renderLeaderboard(leaders) {
-        if (!leaders.length) {
-            $('#leaderboard-list').html('<div class="alert alert-light mb-0">No reputation activity yet.</div>');
-            return;
+    const renderPodium = (user, rank, color, icon) => {
+        if (!user) {
+            return '<div class="col-4"></div>';
         }
 
-        const html = leaders.map((user, index) => `
-            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                <div>
-                    <div class="fw-semibold">#${index + 1} ${escapeHtml(user.firstname)} ${escapeHtml(user.lastname)}</div>
-                    <small class="text-muted">${user.posts} posts • ${user.answers} answers</small>
-                </div>
-                <span class="badge bg-warning text-dark">${user.points} pts</span>
-            </div>
-        `).join('');
+        const size = rank === 1 ? '120px' : '100px';
+        const order = rank === 2 ? 'order-first' :
+            (rank === 3 ? 'order-last' : '');
 
-        $('#leaderboard-list').html(html);
-    }
+        const userImage = user.profileimageurl ||
+            `${M.cfg.wwwroot}/pix/u/f1.png`;
+
+        return `
+            <div class="col-4 ${order}">
+                <div class="podium-item pb-2">
+
+                    <div class="position-relative mb-2 d-inline-block">
+
+                        <img
+                            src="${userImage}"
+                            class="rounded-circle border border-3 border-${color} shadow-sm"
+                            style="width:${size};height:${size};object-fit:cover;"
+                        >
+
+                        <span
+                            class="badge rounded-pill bg-${color}
+                            position-absolute bottom-0 start-50
+                            translate-middle-x shadow"
+                        >
+                            <i class="fa ${icon}"></i>
+                        </span>
+
+                    </div>
+
+                    <div class="fw-bold text-truncate small">
+                        ${escapeHtml(user.firstname)}
+                    </div>
+
+                    <div class="badge bg-light text-dark border small">
+                        ${user.points} pts
+                    </div>
+
+                </div>
+            </div>`;
+    };
+
+    html += renderPodium(topThree[1], 2, 'secondary', 'fa-medal');
+    html += renderPodium(topThree[0], 1, 'warning', 'fa-crown');
+    html += renderPodium(topThree[2], 3, 'secondary', 'fa-trophy');
+
+    html += '</div><hr>';
+
+    html += '<div class="leaderboard-list-scroll" ';
+    html += 'style="max-height:400px;overflow-y:auto;">';
+
+    others.forEach((user, index) => {
+        const rank = index + 4;
+
+        const userImage = user.profileimageurl ||
+            `${M.cfg.wwwroot}/pix/u/f2.png`;
+
+        html += `
+            <div
+                class="d-flex align-items-center p-2 mb-2 rounded
+                hover-bg-light transition-all border-bottom border-light"
+            >
+
+                <div class="text-muted fw-bold me-3" style="width:25px;">
+                    ${rank}
+                </div>
+
+                <img
+                    src="${userImage}"
+                    class="rounded-circle me-3"
+                    style="width:35px;height:35px;object-fit:cover;"
+                >
+
+                <div class="flex-grow-1">
+
+                    <div class="fw-semibold small text-dark">
+                        ${escapeHtml(user.firstname)}
+                        ${escapeHtml(user.lastname)}
+                    </div>
+
+                    <div class="text-muted" style="font-size:0.7rem;">
+                        ${user.posts} posts • ${user.answers} answers
+                    </div>
+
+                </div>
+
+                <div class="text-end">
+                    <span class="fw-bold text-primary small">
+                        ${user.points}
+                    </span>
+                </div>
+
+            </div>`;
+    });
+
+    html += '</div>';
+    html += '</div>';
+
+    container.html(html);
+}
 
     /**
      * Fetch and render posts.

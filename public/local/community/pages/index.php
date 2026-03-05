@@ -9,6 +9,8 @@ $context = context_system::instance();
 $PAGE->set_url('/local/community/pages/index.php');
 $PAGE->set_context($context);
 $PAGE->set_pagelayout('standard');
+$PAGE->requires->css('/local/community/styles.css');
+
 
 // 🔹 Use language strings (best practice)
 $PAGE->set_title(get_string('pluginname', 'local_community'));
