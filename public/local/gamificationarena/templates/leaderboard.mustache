@@ -1,0 +1,28 @@
+<div class="local-ga-leaderboard">
+    <div class="mb-3">
+        <a class="btn btn-sm btn-outline-primary" href="{{alltimeurl}}">{{#str}}alltimeleaderboard, local_gamificationarena{{/str}}</a>
+        <a class="btn btn-sm btn-outline-primary" href="{{weekurl}}">{{#str}}weeklyleaderboard, local_gamificationarena{{/str}}</a>
+    </div>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>{{#str}}ranking, local_gamificationarena{{/str}}</th>
+                <th>{{#str}}xp, local_gamificationarena{{/str}}</th>
+                <th>{{#str}}wins, local_gamificationarena{{/str}}</th>
+                <th>{{#str}}losses, local_gamificationarena{{/str}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#rows}}
+                <tr>
+                    <td>{{rank}}</td>
+                    <td>{{name}}</td>
+                    <td>{{xp}}</td>
+                    <td>{{wins}}</td>
+                    <td>{{losses}}</td>
+                </tr>
+            {{/rows}}
+        </tbody>
+    </table>
+</div>
