@@ -15,33 +15,33 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Library functions for local_jobfeed plugin.
+ * Library callbacks for local_jobfeed.
  *
- * @package    local_jobfeed
- * @copyright  2024 Your Name <your.email@example.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   local_jobfeed
+ * @copyright 2026
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-/**
- * Get the default limit for job results.
- *
- * Falls back to plugin config or hardcoded default.
- *
- * @return int Default limit value
- */
-function local_jobfeed_get_default_limit(): int {
-    $config = get_config('local_jobfeed');
-    return !empty($config->default_limit) ? (int)$config->default_limit : 10;
-}
+defined('MOODLE_INTERNAL') || die();
 
 /**
- * Get the API endpoint URL.
+ * Extends the site navigation with a Job Feed link.
  *
- * @return string API endpoint URL
+ * @param global_navigation $navigation Navigation node object.
  */
-function local_jobfeed_get_api_endpoint(): string {
-    $config = get_config('local_jobfeed');
-    return !empty($config->api_endpoint) 
-        ? $config->api_endpoint 
-        : 'http://127.0.0.1:8000/jobs';
+function local_jobfeed_extend_navigation(global_navigation $navigation): void {
+    if (!isloggedin() || isguestuser()) {
+        return;
+    }
+
+    $url = new moodle_url('/local/jobfeed/index.php');
+    $node = navigation_node::create(
+        get_string('pluginname', 'local_jobfeed'),
+        $url,
+        navigation_node::TYPE_CUSTOM,
+        null,
+        'local_jobfeed'
+    );
+
+    $navigation->add_node($node);
 }

@@ -15,26 +15,24 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * English language strings for local_jobfeed plugin.
+ * Language strings for local_jobfeed.
  *
- * @package    local_jobfeed
- * @copyright  2024 Your Name <your.email@example.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   local_jobfeed
+ * @copyright 2026
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 $string['pluginname'] = 'Job Feed';
-$string['apply_now'] = 'Apply Now';
-$string['jobs_for_skill'] = 'Jobs for {$a}';
-$string['no_jobs_found'] = 'No {$a} jobs found at the moment.';
-$string['try_different_skill'] = 'Try searching for a different skill or check back later.';
-$string['api_error'] = 'Unable to fetch job listings. Please try again later.';
+$string['jobopportunities'] = 'Latest job opportunities';
+$string['filteredbyskill'] = 'Filtered by skill: {$a}';
+$string['company'] = 'Company';
+$string['location'] = 'Location';
+$string['posted'] = 'Posted';
+$string['applynow'] = 'Apply now';
+$string['apifailure'] = 'Could not contact the jobs service at this time.';
+$string['invalidresponse'] = 'The jobs service returned an invalid response.';
+$string['errorfetchjobs'] = 'Sorry, jobs cannot be loaded right now. Please try again later.';
+$string['nojobsfound'] = 'No jobs were found for this skill yet.';
 
-// Settings strings.
-$string['api_endpoint'] = 'API Endpoint';
-$string['api_endpoint_desc'] = 'The base URL for the job listings API endpoint.';
-$string['default_limit'] = 'Default Job Limit';
-$string['default_limit_desc'] = 'Default number of jobs to display when no limit parameter is provided (1-50).';
-$string['default_skill'] = 'Default Skill';
-$string['default_skill_desc'] = 'Default skill filter to use when no skill parameter is provided.';
+$string['defaultlimit'] = 'Default jobs limit';
+$string['defaultlimit_desc'] = 'Default number of jobs fetched when no limit is provided in the URL.';

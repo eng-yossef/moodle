@@ -15,18 +15,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information for local_jobfeed plugin.
+ * Version details for local_jobfeed.
  *
- * @package    local_jobfeed
- * @copyright  2024 Your Name <your.email@example.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   local_jobfeed
+ * @copyright 2026
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_jobfeed';
-$plugin->version   = 2024031000;      // YYYYMMDDXX format
-$plugin->requires  = 2022041900;      // Requires Moodle 4.0+
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.0.0';
-$plugin->supported = [400, 404];      // Supported Moodle versions
+$plugin->version = 2026030900;
+$plugin->requires = 2023042400;
+$plugin->maturity = MATURITY_ALPHA;
+$plugin->release = '0.1.0';

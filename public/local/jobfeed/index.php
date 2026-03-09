@@ -1,38 +1,73 @@
 <?php
-require('../../config.php');
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+require_once(__DIR__ . '/../../config.php');
+
 require_login();
 
-global $CFG, $OUTPUT, $PAGE;
+$defaultlimit = (int)get_config('local_jobfeed', 'defaultlimit');
+if ($defaultlimit < 1) {
+    $defaultlimit = 5;
+}
 
-require_once($CFG->dirroot . '/local/jobfeed/lib.php');
-use local_jobfeed\api_client;
+$skill = optional_param('skill', 'java', PARAM_ALPHANUMEXT);
+$limit = optional_param('limit', $defaultlimit, PARAM_INT);
+if ($limit < 1 || $limit > 50) {
+    $limit = $defaultlimit;
+}
 
-// Page setup
-$context = context_system::instance();
-$PAGE->set_context($context);
-$PAGE->set_url('/local/jobfeed/index.php');
+$pageurl = new moodle_url('/local/jobfeed/index.php', ['skill' => $skill, 'limit' => $limit]);
+$PAGE->set_url($pageurl);
+$PAGE->set_context(context_system::instance());
 $PAGE->set_pagelayout('standard');
 $PAGE->set_title(get_string('pluginname', 'local_jobfeed'));
 $PAGE->set_heading(get_string('pluginname', 'local_jobfeed'));
 
-// Get skill & limit from URL or plugin config
-$skill = optional_param('skill', get_config('local_jobfeed', 'default_skill') ?: 'java', PARAM_ALPHANUMEXT);
-$limit = optional_param('limit', local_jobfeed_get_default_limit(), PARAM_INT);
-$limit = max(1, min($limit, 50)); // constrain limit
+$client = new \local_jobfeed\api_client();
+$jobs = [];
+$error = '';
 
-// Initialize renderer
-$output = $PAGE->get_renderer('local_jobfeed');
+try {
+    $jobs = $client->get_jobs($skill, $limit);
+} catch (Throwable $e) {
+    $error = get_string('errorfetchjobs', 'local_jobfeed');
+}
 
-// Set API endpoint
-$endpoint = 'http://127.0.0.1:8000/jobs'; // FastAPI endpoint
+$templatecontext = (object)[
+    'skill' => s($skill),
+    'hasjobs' => !empty($jobs),
+    'jobs' => array_map(static function(array $job): array {
+        return [
+            'title' => s($job['title']),
+            'company' => s($job['company']),
+            'location' => s($job['location']),
+            'date' => s($job['date']),
+            'url' => s($job['url']),
+        ];
+    }, $jobs),
+    'error' => $error,
+    'haserror' => !empty($error),
+    'nojobs' => empty($jobs) && empty($error),
+    'applylabel' => get_string('applynow', 'local_jobfeed'),
+    'nojobsmessage' => get_string('nojobsfound', 'local_jobfeed'),
+];
 
-// Initialize API client
-$apiclient = new api_client($endpoint);
+/** @var \local_jobfeed\output\renderer $renderer */
+$renderer = $PAGE->get_renderer('local_jobfeed');
 
-// Fetch jobs from API
-$jobs = $apiclient->get_jobs($skill, $limit);
-
-// Render page
 echo $OUTPUT->header();
-echo $output->render_jobs($jobs, $skill);
+echo $renderer->render_jobs_page($templatecontext);
 echo $OUTPUT->footer();

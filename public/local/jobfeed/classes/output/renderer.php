@@ -14,45 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Custom renderer for job feed plugin.
- *
- * @package    local_jobfeed
- * @copyright  2024 Your Name <your.email@example.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 namespace local_jobfeed\output;
 
-defined('MOODLE_INTERNAL') || die();
-
 use plugin_renderer_base;
+use stdClass;
 
 /**
- * Renderer class for job feed output.
+ * Renderer for local_jobfeed.
  *
- * @package    local_jobfeed
- * @copyright  2024 Your Name <your.email@example.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   local_jobfeed
+ * @copyright 2026
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class renderer extends plugin_renderer_base {
-    
     /**
-     * Render a list of jobs using Mustache template.
+     * Render jobs page.
      *
-     * @param array $jobs Array of job data arrays
-     * @param string $skill The skill filter used
-     * @return string Rendered HTML
+     * @param stdClass $data Template data.
+     * @return string
      */
-    public function render_jobs(array $jobs, string $skill = 'java'): string {
-        $data = [
-            'jobs' => $jobs,
-            'skill' => $skill,
-            'has_jobs' => !empty($jobs),
-            'no_jobs_message' => get_string('no_jobs_found', 'local_jobfeed', $skill),
-            'error_message' => get_string('api_error', 'local_jobfeed'),
-        ];
-        
+    public function render_jobs_page(stdClass $data): string {
         return $this->render_from_template('local_jobfeed/jobs', $data);
     }
 }
