@@ -1,47 +1,50 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
-//
-// Moodle is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Moodle is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-
-/**
- * Library callbacks for local_jobfeed.
- *
- * @package   local_jobfeed
- * @copyright 2026
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Extends the site navigation with a Job Feed link.
+ * Add plugin link to Moodle top navigation bar
  *
- * @param global_navigation $navigation Navigation node object.
+ * @param global_navigation $nav
  */
-function local_jobfeed_extend_navigation(global_navigation $navigation): void {
+function local_jobfeed_extend_navigation(global_navigation $nav) {
+    global $USER;
+
+    // Optional: check if user can view plugin
     if (!isloggedin() || isguestuser()) {
         return;
     }
 
+    // Add top-level link
     $url = new moodle_url('/local/jobfeed/index.php');
-    $node = navigation_node::create(
-        get_string('pluginname', 'local_jobfeed'),
-        $url,
-        navigation_node::TYPE_CUSTOM,
-        null,
-        'local_jobfeed'
+    $nav->add(
+        'Job Feed',                   // Text to display
+        $url,                         // Link
+        navigation_node::TYPE_CUSTOM, // Node type
+        null,                         // Short text (null)
+        null,                         // Key (null)
+        new pix_icon('i/info', 'Job Feed') // Icon
     );
+}
+/**
+ * Get jobs from external API
+ */
+function local_jobfeed_get_jobs($skill = 'python', $limit = 1) {
+    $url = "http://localhost:8000/jobs?skill={$skill}&limit={$limit}";
 
-    $navigation->add_node($node);
+    $curl = curl_init($url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($curl);
+
+    if(curl_errno($curl)) {
+        return ['error' => curl_error($curl)];
+    }
+
+    curl_close($curl);
+    $data = json_decode($response, true);
+
+    if(!$data) {
+        return ['error' => 'Invalid JSON response'];
+    }
+
+    return $data;
 }
