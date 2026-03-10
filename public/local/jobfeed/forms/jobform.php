@@ -5,14 +5,12 @@ class jobfeed_form extends moodleform {
     public function definition() {
         $mform = $this->_form;
 
+        // Skill input
         $mform->addElement('text', 'skill', 'Skill');
         $mform->setType('skill', PARAM_TEXT);
-        $mform->setDefault('skill', 'python');
+        $mform->setDefault('skill', 'python'); // initial skill
 
-        $mform->addElement('text', 'limit', 'Number of jobs');
-        $mform->setType('limit', PARAM_INT);
-        $mform->setDefault('limit', 1);
-
-        $mform->addElement('submit', 'submitbutton', 'Get Jobs');
+        // Submit button
+        $mform->addElement('submit', 'submitbutton', 'Search Jobs');
     }
 }
