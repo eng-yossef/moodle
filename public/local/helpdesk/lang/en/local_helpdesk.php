@@ -166,3 +166,9 @@ $string['chatbotemptyquestion'] = 'Please enter a question.';
 $string['chatbotmaxopen'] = 'You already have 3 open tickets. Please resolve one before creating another.';
 $string['chatbotfallbackcreated'] = 'I have created a support ticket (#{$a}) for you. A support agent will follow up soon.';
 $string['chatbotintro'] = 'Hello! I\'m your support assistant. Ask me anything about your courses or issues.';
+
+
+$string['chatbotemptyquestion'] = 'Please enter a question.';
+$string['chatbotmaxopen'] = 'You already have 3 open tickets. Please resolve one before creating another.';
+$string['chatbotfallbackcreated'] = 'Ticket #{$a} has been created. A support agent will follow up soon.';
+$string['chatbotescalationproposal'] = 'It seems this issue requires human support. I can create a ticket for you. Do you want me to do that?';

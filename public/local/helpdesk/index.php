@@ -1,26 +1,11 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
 //
-// Moodle is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// Helpdesk main page — shows the current user's tickets + AI chat widget with confirmation.
 //
-// Moodle is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-
-/**
- * Helpdesk main page — shows the current user's tickets + AI chat widget.
- *
- * @package    local_helpdesk
- * @copyright  2026 Helpdesk Plugin
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+// @package    local_helpdesk
+// @copyright  2026 Helpdesk Plugin
+// @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
 
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/tablelib.php');
@@ -172,6 +157,11 @@ echo $OUTPUT->render_from_template('local_helpdesk/ticket_list', $templatedata);
     font-style: italic;
     padding: 8px 12px;
 }
+.confirmation-buttons {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+}
 </style>
 
 <div id="ai-chat-wrapper">
@@ -191,18 +181,12 @@ echo $OUTPUT->render_from_template('local_helpdesk/ticket_list', $templatedata);
             <button id="ai-chat-send" title="Send">➤</button>
         </div>
     </div>
-    <div id="ai-chat-icon">
-        <!-- cutsomer service emoji -->
-        🛎️
-         
-         
-    </div>
+    <div id="ai-chat-icon">💬</div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script>
 $(function() {
-    // Prevent duplicate widget initialisation
     if (window.chatWidgetInitialized) return;
     window.chatWidgetInitialized = true;
 
@@ -276,7 +260,59 @@ $(function() {
         window.speechSynthesis.speak(utterance);
     };
 
-    const sendMessage = () => {
+    // Show confirmation buttons inside the last AI bubble
+    function showConfirmationButtons(containerId, proposedTicket, originalQuestion) {
+        const $container = $('#' + containerId);
+        const buttonsHtml = `
+            <div class="confirmation-buttons">
+                <button class="btn btn-sm btn-success confirm-yes">Create ticket</button>
+                <button class="btn btn-sm btn-secondary confirm-no">No, thanks</button>
+            </div>
+        `;
+        $container.append(buttonsHtml);
+
+        // Create ticket on confirmation
+        $container.find('.confirm-yes').on('click', function() {
+            $(this).prop('disabled', true).text('Creating...');
+            $.ajax({
+                url: M.cfg.wwwroot + '/local/helpdesk/chatbot_create_ticket.php',
+                method: 'POST',
+                data: {
+                    subject: proposedTicket.subject,
+                    priority: proposedTicket.priority,
+                    description: proposedTicket.description,
+                    question: originalQuestion,
+                    sesskey: M.cfg.sesskey
+                },
+                dataType: 'json',
+                success: function(res) {
+                    if (res.success) {
+                        const ticketLink = M.cfg.wwwroot + '/local/helpdesk/view.php?id=' + res.ticketid;
+                        const successHtml = `<div class="chat-bubble ai-msg" style="margin-top: 8px;">${res.reply} <a href="${ticketLink}">View ticket</a></div>`;
+                        $container.parent().append(successHtml);
+                    } else {
+                        $container.parent().append('<div class="chat-bubble ai-msg" style="margin-top: 8px;">Error: ' + (res.error || 'Could not create ticket') + '</div>');
+                    }
+                    $container.find('.confirmation-buttons').remove();
+                    scrollToBottom();
+                },
+                error: function() {
+                    $container.parent().append('<div class="chat-bubble ai-msg" style="margin-top: 8px;">Error: Ticket creation failed.</div>');
+                    $container.find('.confirmation-buttons').remove();
+                    scrollToBottom();
+                }
+            });
+        });
+
+        // Handle "No, thanks"
+        $container.find('.confirm-no').on('click', function() {
+            $container.find('.confirmation-buttons').remove();
+            $container.parent().append('<div class="chat-bubble ai-msg" style="margin-top: 8px;">Okay, no ticket was created. You can ask me something else.</div>');
+            scrollToBottom();
+        });
+    }
+
+    const sendMessage = function() {
         const message = $('#ai-chat-input').val().trim();
         if (!message) return;
 
@@ -292,13 +328,25 @@ $(function() {
             method: 'POST',
             data: { question: message, sesskey: M.cfg.sesskey },
             dataType: 'json',
-            success: (res) => {
+            success: function(res) {
                 $('#' + loadingId).remove();
                 if (res.error) {
-                    const errMsg = res.error;
-                    $('#ai-chat-body').append(renderBubble(errMsg, 'ai-msg'));
-                    sessionHistory.push({question: message, answer: errMsg});
-                    speakResponse(errMsg);
+                    $('#ai-chat-body').append(renderBubble(res.error, 'ai-msg'));
+                    sessionHistory.push({question: message, answer: res.error});
+                    speakResponse(res.error);
+                    scrollToBottom();
+                    return;
+                }
+
+                if (res.needs_confirmation) {
+                    // Show the proposal message
+                    const proposalMsgId = 'proposal-' + Date.now();
+                    const $proposalBubble = renderBubble(res.reply, 'ai-msg');
+                    $proposalBubble.attr('id', proposalMsgId);
+                    $('#ai-chat-body').append($proposalBubble);
+                    showConfirmationButtons(proposalMsgId, res.proposed_ticket, message);
+                    sessionHistory.push({question: message, answer: res.reply + ' [Awaiting confirmation]'});
+                    speakResponse(res.reply);
                 } else {
                     const reply = res.reply;
                     $('#ai-chat-body').append(renderBubble(reply, 'ai-msg'));
@@ -312,7 +360,7 @@ $(function() {
                 }
                 scrollToBottom();
             },
-            error: () => {
+            error: function() {
                 $('#' + loadingId).remove();
                 const errMsg = 'Sorry, an error occurred. Please try again later.';
                 $('#ai-chat-body').append(renderBubble(errMsg, 'ai-msg'));
