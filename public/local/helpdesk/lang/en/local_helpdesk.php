@@ -139,3 +139,21 @@ $string['chatbotmaxopen']        = 'I could not answer and cannot create a new t
 $string['chatbotticketsubject']  = 'Chatbot escalation: user support request';
 $string['chatbotticketdesc']     = '<p><strong>Escalated by chatbot.</strong></p><p>User question:</p><p>{$a}</p>';
 $string['chatbotfallbackcreated']= 'I could not answer this question, so I created support ticket #{$a}. A technical support agent will follow up with you soon.';
+
+
+
+
+$string['allassigned'] = 'All tickets';
+$string['unassigned'] = 'Unassigned';
+$string['assignedtome'] = 'Assigned to me';
+$string['allpriorities'] = 'All priorities';
+$string['allcourses'] = 'All courses';
+$string['allusers'] = 'All users';
+$string['allassignedusers'] = 'All support agents';
+$string['advancedfilters'] = 'Advanced filters';
+$string['searchsubject'] = 'Subject...';
+$string['fromdate'] = 'From date';
+$string['todate'] = 'To date';
+$string['applyfilters'] = 'Apply';
+$string['clearfilters'] = 'Clear filters';
+$string['assignedto'] = 'Assigned to';
