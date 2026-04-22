@@ -13,7 +13,7 @@ $records = $DB->get_records_sql("
     FROM {local_coptutor_qa}
     WHERE userid = ? AND courseid = ?
     ORDER BY id DESC
-    LIMIT 2
+    LIMIT 5
 ", [$USER->id, $courseid]);
 
 $records = array_reverse($records); // show oldest first
