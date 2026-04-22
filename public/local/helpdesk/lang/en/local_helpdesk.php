@@ -157,3 +157,12 @@ $string['todate'] = 'To date';
 $string['applyfilters'] = 'Apply';
 $string['clearfilters'] = 'Clear filters';
 $string['assignedto'] = 'Assigned to';
+
+
+
+$string['chatbottitle'] = 'AI Assistant';
+$string['chatbotquestionlabel'] = 'Ask a question...';
+$string['chatbotemptyquestion'] = 'Please enter a question.';
+$string['chatbotmaxopen'] = 'You already have 3 open tickets. Please resolve one before creating another.';
+$string['chatbotfallbackcreated'] = 'I have created a support ticket (#{$a}) for you. A support agent will follow up soon.';
+$string['chatbotintro'] = 'Hello! I\'m your support assistant. Ask me anything about your courses or issues.';

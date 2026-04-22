@@ -1,0 +1,334 @@
+define(['jquery', 'core/ajax', 'core/str'], function($, Ajax, Str) {
+
+    return {
+        init: function() {
+
+            const styles = `
+<style>
+#ai-chat-wrapper {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+#ai-chat-icon {
+    width: 60px; height: 60px; background: #007bff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,.2);
+    font-size: 24px;
+}
+#ai-chat-window {
+    display: none; width: 400px; height: 500px; background: #fff;
+    border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    flex-direction: column; overflow: hidden; margin-bottom: 15px;
+    border: 1px solid #ddd;
+}
+#ai-chat-header {
+    background: #007bff; color: #fff; padding: 15px; font-weight: bold;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.header-controls {
+    display: flex; gap: 12px;
+}
+.header-controls button {
+    background: transparent; border: none; color: white;
+    font-size: 18px; cursor: pointer; padding: 0;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+}
+.header-controls button:hover {
+    background: rgba(255,255,255,0.2);
+}
+.header-controls button.off {
+    opacity: 0.6;
+    background: rgba(0,0,0,0.2);
+}
+#ai-chat-body {
+    flex: 1; padding: 15px; overflow-y: auto; background: #f9f9fb;
+    display: flex; flex-direction: column; gap: 12px;
+}
+.chat-bubble {
+    padding: 12px 16px; border-radius: 15px; max-width: 85%;
+    font-size: 14px; line-height: 1.6; word-wrap: break-word;
+}
+.user-msg {
+    background: #007bff; color: #fff; align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+.ai-msg {
+    background: #fff; color: #333; align-self: flex-start;
+    border-bottom-left-radius: 2px; border: 1px solid #e0e0e0;
+}
+#ai-chat-footer {
+    padding: 10px; border-top: 1px solid #eee; display: flex;
+    gap: 8px; background: #fff;
+}
+#ai-chat-input {
+    flex: 1; border: 1px solid #ddd; border-radius: 20px;
+    padding: 10px 15px; height: 42px; resize: none; outline: none;
+}
+#ai-chat-send, #ai-chat-mic {
+    background: #007bff; color: #fff; border: none; border-radius: 50%;
+    width: 40px; height: 40px; cursor: pointer;
+}
+#ai-chat-mic.listening {
+    background: #dc3545;
+}
+#ai-chat-mic:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.typing {
+    color: #666;
+    font-style: italic;
+    padding: 8px 12px;
+}
+</style>`;
+
+            const chatHTML = `
+<div id="ai-chat-wrapper">
+    <div id="ai-chat-window">
+        <div id="ai-chat-header">
+            <span>AI Support Assistant</span>
+            <div class="header-controls">
+                <button id="voice-toggle-btn" title="Toggle voice output">🔊</button>
+                <button id="mic-toggle-btn" title="Toggle microphone input">🎤❌</button>
+                <span id="close-chat" style="cursor:pointer;font-size:20px;">&times;</span>
+            </div>
+        </div>
+        <div id="ai-chat-body"></div>
+        <div id="ai-chat-footer">
+            <textarea id="ai-chat-input" placeholder="Ask a question..."></textarea>
+            <button id="ai-chat-mic" title="Voice to text">🎤</button>
+            <button id="ai-chat-send" title="Send">➤</button>
+        </div>
+    </div>
+    <div id="ai-chat-icon">💬</div>
+</div>`;
+
+            $('body').append(styles + chatHTML);
+
+            // Feature detection
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const hasSpeechRecognition = !!SpeechRecognition;
+            const hasSpeechSynthesis = 'speechSynthesis' in window;
+            let recognition = null;
+            let sessionHistory = []; // Store messages in current session (no DB)
+
+            // Toggle states
+            let voiceEnabled = true;
+            let micEnabled = true;
+
+            const $voiceToggleBtn = $('#voice-toggle-btn');
+            const $micToggleBtn = $('#mic-toggle-btn');
+            const $micButton = $('#ai-chat-mic');
+
+
+
+/**
+ *  Update the UI of the voice toggle button based on the current state.
+ */
+            function updateVoiceToggleUI() {
+
+                if (voiceEnabled) {
+                    $voiceToggleBtn.html('🔊');
+                    $voiceToggleBtn.removeClass('off');
+                    $voiceToggleBtn.attr('title', 'Disable voice output');
+                } else {
+                    $voiceToggleBtn.html('🔇');
+                    $voiceToggleBtn.addClass('off');
+                    $voiceToggleBtn.attr('title', 'Enable voice output');
+                }
+            }
+
+            /**
+             * Update the UI of the microphone toggle button based on the current state.
+             */
+            function updateMicToggleUI() {
+                if (micEnabled) {
+                    $micToggleBtn.html('🎤');
+                    $micToggleBtn.removeClass('off');
+                    $micToggleBtn.attr('title', 'Disable microphone input');
+                    $micButton.prop('disabled', false);
+                } else {
+                    $micToggleBtn.html('🚫🎤');
+                    $micToggleBtn.addClass('off');
+                    $micToggleBtn.attr('title', 'Enable microphone input');
+                    $micButton.prop('disabled', true);
+                    if (recognition) {
+                        try { recognition.stop(); } catch(e) {}
+                        recognition = null;
+                        $micButton.removeClass('listening');
+                    }
+                }
+            }
+
+            if (!hasSpeechRecognition) {
+                $micButton.prop('disabled', true).attr('title', 'Voice input not supported');
+                micEnabled = false;
+                updateMicToggleUI();
+            }
+
+            const scrollToBottom = function() {
+                const body = $('#ai-chat-body');
+                body.animate({scrollTop: body[0].scrollHeight}, 300);
+            };
+
+            const renderBubble = function(content, type) {
+                return $('<div>').addClass('chat-bubble ' + type).html(content);
+            };
+
+            // Load "history" – we restore from sessionHistory (messages sent during this page visit)
+            const loadHistory = function() {
+                $('#ai-chat-body').empty();
+                if (sessionHistory.length === 0) {
+                    // Show welcome message
+                    Str.get_string('chatbotintro', 'local_helpdesk').then(welcome => {
+                        $('#ai-chat-body').append(renderBubble(welcome, 'ai-msg'));
+                        scrollToBottom();
+                    }).catch(() => {
+                        $('#ai-chat-body').append(renderBubble('Hello! How can I help you today?', 'ai-msg'));
+                        scrollToBottom();
+                    });
+                } else {
+                    sessionHistory.forEach(item => {
+                        $('#ai-chat-body').append(renderBubble(item.question, 'user-msg'));
+                        $('#ai-chat-body').append(renderBubble(item.answer, 'ai-msg'));
+                    });
+                    scrollToBottom();
+                }
+            };
+
+            const speakResponse = function(text) {
+                if (!voiceEnabled || !hasSpeechSynthesis) {return;}
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            };
+
+            const sendMessage = function() {
+                const message = $('#ai-chat-input').val().trim();
+                if (!message) {return;}
+
+                $('#ai-chat-body').append(renderBubble(message, 'user-msg'));
+                $('#ai-chat-input').val('');
+
+                const loadingId = 'loading-' + Date.now();
+                $('#ai-chat-body').append('<div id="' + loadingId + '" class="typing">AI is thinking...</div>');
+                scrollToBottom();
+
+                // Use Moodle's AJAX wrapper to send request with sesskey
+                $.ajax({
+                    url: M.cfg.wwwroot + '/local/helpdesk/chatbot_ajax.php',
+                    method: 'POST',
+                    data: {
+                        question: message,
+                        sesskey: M.cfg.sesskey
+                    },
+                    dataType: 'json',
+                    success: function(res) {
+                        $('#' + loadingId).remove();
+                        if (res.error) {
+                            const errorMsg = res.error;
+                            $('#ai-chat-body').append(renderBubble(errorMsg, 'ai-msg'));
+                            sessionHistory.push({question: message, answer: errorMsg});
+                            speakResponse(errorMsg);
+                        } else {
+                            const reply = res.reply;
+                            $('#ai-chat-body').append(renderBubble(reply, 'ai-msg'));
+                            sessionHistory.push({question: message, answer: reply});
+                            speakResponse(reply);
+                            if (res.escalated && res.ticketid) {
+                                const viewUrl = M.cfg.wwwroot + '/local/helpdesk/view.php?id=' + res.ticketid;
+                                const linkHtml = '<a href="' + viewUrl + '" class="btn btn-sm btn-primary mt-2">View Ticket</a>';
+                                $('#ai-chat-body').append(renderBubble(linkHtml, 'ai-msg'));
+                            }
+                        }
+                        scrollToBottom();
+                    },
+                    error: function() {
+                        $('#' + loadingId).remove();
+                        const errMsg = 'Sorry, an error occurred. Please try again later.';
+                        $('#ai-chat-body').append(renderBubble(errMsg, 'ai-msg'));
+                        sessionHistory.push({question: message, answer: errMsg});
+                        scrollToBottom();
+                    }
+                });
+            };
+
+            const startVoiceInput = function() {
+                if (!micEnabled) {return;}
+                if (!hasSpeechRecognition || recognition) {return;}
+
+                recognition = new SpeechRecognition();
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                $micButton.addClass('listening');
+
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    const currentText = $('#ai-chat-input').val().trim();
+                    $('#ai-chat-input').val((currentText ? currentText + ' ' : '') + transcript).focus();
+                };
+
+                recognition.onerror = function() {
+                    $micButton.removeClass('listening');
+                    recognition = null;
+                };
+
+                recognition.onend = function() {
+                    $micButton.removeClass('listening');
+                    recognition = null;
+                };
+
+                recognition.start();
+            };
+
+            // Event bindings
+            $voiceToggleBtn.on('click', function(e) {
+                e.stopPropagation();
+                voiceEnabled = !voiceEnabled;
+                updateVoiceToggleUI();
+                if (!voiceEnabled && hasSpeechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+            });
+
+            $micToggleBtn.on('click', function(e) {
+                e.stopPropagation();
+                micEnabled = !micEnabled;
+                updateMicToggleUI();
+            });
+
+            $('#ai-chat-icon').on('click', function() {
+                $('#ai-chat-window').fadeToggle(200).css('display', 'flex');
+                if ($('#ai-chat-body').children().length === 0) {
+                    loadHistory();
+                }
+            });
+
+            $('#close-chat').on('click', function() {
+                $('#ai-chat-window').fadeOut(200);
+            });
+
+            $('#ai-chat-send').on('click', sendMessage);
+            $('#ai-chat-mic').on('click', startVoiceInput);
+            $('#ai-chat-input').on('keypress', function(e) {
+                if (e.which === 13 && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Initialize UI
+            updateVoiceToggleUI();
+            updateMicToggleUI();
+
+            // Preload welcome message (but don't open window automatically)
+            // We'll load history only when the icon is clicked, so no welcome until opened.
+        }
+    };
+});
