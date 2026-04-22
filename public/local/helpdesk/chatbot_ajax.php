@@ -58,7 +58,9 @@ if (!empty($ai['escalate'])) {
     $proposed = [
         'subject'     => clean_param($ai['ticket_summary'], PARAM_TEXT),
         'priority'    => $ai['priority'] ?? 'medium',
-        'description' => $question . "\n\nAI Analysis:\n" . $ai['ticket_summary']
+        'description' => $question . "\n\nAI Analysis:\n" . $ai['ticket_summary'],
+        'ai_response' => $ai['ticket_summary']   // <-- ADD THIS LINE
+
     ];
 
     echo json_encode([

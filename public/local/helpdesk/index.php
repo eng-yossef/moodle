@@ -282,6 +282,7 @@ $(function() {
                     priority: proposedTicket.priority,
                     description: proposedTicket.description,
                     question: originalQuestion,
+                    ai_response: proposedTicket.ai_response,   
                     sesskey: M.cfg.sesskey
                 },
                 dataType: 'json',
