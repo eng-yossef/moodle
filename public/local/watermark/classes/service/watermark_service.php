@@ -18,9 +18,48 @@ namespace local_watermark\service;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/filelib.php');
+// Load Composer's autoloader for FPDI and FPDF.
+require_once(__DIR__ . '/../../vendor/autoload.php');
 
-use \setasign\Fpdi\Fpdi;
+use setasign\Fpdi\Fpdi;
+
+// Extend Fpdi to add Rotate functionality (similar to FPDF's Rotate)
+class WatermarkPdf extends Fpdi {
+    protected $angle = 0;
+
+    function Rotate($angle, $x = -1, $y = -1) {
+        if ($x == -1)
+            $x = $this->x;
+        if ($y == -1)
+            $y = $this->y;
+        if ($this->angle != 0)
+            $this->_out('Q');
+        $this->angle = $angle;
+        if ($angle != 0) {
+            $angle *= M_PI / 180;
+            $c = cos($angle);
+            $s = sin($angle);
+            $cx = $x * $this->k;
+            $cy = ($this->h - $y) * $this->k;
+            $this->_out(sprintf('q %.5F %.5F %.5F %.5F %.2F %.2F cm 1 0 0 1 %.2F %.2F cm', $c, $s, -$s, $c, $cx, $cy, -$cx, -$cy));
+        }
+    }
+
+    function _endpage() {
+        if ($this->angle != 0) {
+            $this->angle = 0;
+            $this->_out('Q');
+        }
+        parent::_endpage();
+    }
+
+    // Optional: add text with rotation at given coordinates
+    function RotatedText($x, $y, $txt, $angle) {
+        $this->Rotate($angle, $x, $y);
+        $this->Text($x, $y, $txt);
+        $this->Rotate(0);
+    }
+}
 
 class watermark_service {
 
@@ -71,7 +110,7 @@ class watermark_service {
     private static function generate_watermarked_pdf($file, $user) {
         try {
             $tempfile = $file->copy_content_to_temp();
-            $pdf = new Fpdi();
+            $pdf = new WatermarkPdf();
 
             // Get number of pages.
             $pagecount = $pdf->setSourceFile($tempfile);
@@ -100,7 +139,7 @@ class watermark_service {
     /**
      * Apply the watermark text on the current PDF page.
      *
-     * @param Fpdi $pdf PDF instance.
+     * @param WatermarkPdf $pdf PDF instance.
      * @param \stdClass $user Current user.
      */
     private static function apply_watermark($pdf, $user) {
@@ -109,11 +148,16 @@ class watermark_service {
         $pdf->SetFont('helvetica', 'B', 30);
         $pdf->SetTextColor(180, 180, 180); // Light gray.
 
-        // Diagonal watermark across the page.
-        $pdf->Rotate(45);
-        $pdf->SetXY(50, 200);
+        // Diagonal watermark across the page - rotate 45 degrees, place at center.
+        $pagew = $pdf->GetPageWidth();
+        $pageh = $pdf->GetPageHeight();
+        $centerX = $pagew / 2;
+        $centerY = $pageh / 2;
+
+        $pdf->Rotate(45, $centerX, $centerY);
+        $pdf->SetXY($centerX - 80, $centerY - 10);
         $pdf->Cell(0, 10, $text, 0, 0, 'C');
-        $pdf->Rotate(0);
+        $pdf->Rotate(0, $centerX, $centerY);
     }
 
     /**

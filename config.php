@@ -1333,7 +1333,7 @@ $CFG->admin = 'admin';
 //=========================================================================
 // ALL DONE!  To continue installation, visit your main page with a browser
 //=========================================================================
-
+$CFG->customscripts = __DIR__ . '/customscripts';
 require_once(__DIR__ . '/lib/setup.php'); // Do not edit
 
 // There is no php closing tag in this file,

@@ -3,7 +3,8 @@
     "description": "Moodle plugin to add dynamic watermarks to PDF downloads",
     "type": "moodle-local",
     "require": {
-        "setasign/fpdi": "^2.6"
+        "setasign/fpdi": "^2.3",
+        "setasign/fpdf": "^1.8"
     },
     "config": {
         "allow-plugins": {
