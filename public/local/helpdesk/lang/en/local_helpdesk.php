@@ -152,6 +152,7 @@ $string['allusers'] = 'All users';
 $string['allassignedusers'] = 'All support agents';
 $string['advancedfilters'] = 'Advanced filters';
 $string['searchsubject'] = 'Subject...';
+$string['search']= 'Search';
 $string['fromdate'] = 'From date';
 $string['todate'] = 'To date';
 $string['applyfilters'] = 'Apply';

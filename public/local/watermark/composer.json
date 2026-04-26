@@ -1,0 +1,13 @@
+{
+    "name": "local/watermark",
+    "description": "Moodle plugin to add dynamic watermarks to PDF downloads",
+    "type": "moodle-local",
+    "require": {
+        "setasign/fpdi": "^2.6"
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true
+        }
+    }
+}
