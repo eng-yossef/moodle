@@ -1,0 +1,11 @@
+<div class="funnel-widget" id="widget-funnel-{{id}}">
+    <h3>{{title}}</h3>
+    <div class="funnel-container">
+        {{#steps}}
+        <div class="funnel-step" style="width: {{percent}}%;">
+            <span class="step-label">{{label}}</span>
+            <span class="step-value">{{value}}</span>
+        </div>
+        {{/steps}}
+    </div>
+</div>

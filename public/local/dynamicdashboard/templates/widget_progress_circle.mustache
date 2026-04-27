@@ -1,0 +1,10 @@
+<div class="progress-circle-widget" id="widget-progress-{{id}}">
+    <h3>{{label}}</h3>
+    <div class="progress-ring" data-percent="{{percent}}">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle class="progress-background" cx="60" cy="60" r="54"></circle>
+            <circle class="progress-fill" cx="60" cy="60" r="54" data-percent="{{percent}}"></circle>
+        </svg>
+        <div class="progress-text">{{percent}}%</div>
+    </div>
+</div>

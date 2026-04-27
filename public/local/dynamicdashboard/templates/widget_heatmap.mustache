@@ -1,0 +1,28 @@
+<div class="heatmap-widget" id="widget-heatmap-{{id}}">
+    <h3>{{title}}</h3>
+
+    <div class="heatmap-grid">
+
+        <!-- Column labels -->
+        <div class="heatmap-row labels">
+            <span class="corner"></span>
+            {{#columns}}
+                <span>{{.}}</span>
+            {{/columns}}
+        </div>
+
+        <!-- Rows -->
+        {{#rows}}
+        <div class="heatmap-row">
+
+            <span class="row-label">{{label}}</span>
+
+            {{#values}}
+                <span class="heat-cell" data-intensity="{{.}}"></span>
+            {{/values}}
+
+        </div>
+        {{/rows}}
+
+    </div>
+</div>

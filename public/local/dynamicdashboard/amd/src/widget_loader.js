@@ -7,19 +7,23 @@ define([], function() {
      * @type {Object<string, string>}
      */
     var registry = {
-    kpi_counter: 'local_dynamicdashboard/kpi_counter',
-    kpicounter: 'local_dynamicdashboard/kpi_counter',
+        kpi_counter: 'local_dynamicdashboard/kpi_counter',
+        kpicounter: 'local_dynamicdashboard/kpi_counter',
 
-    activity_stream: 'local_dynamicdashboard/activity_stream',
-    activitystream: 'local_dynamicdashboard/activity_stream',
+        activity_stream: 'local_dynamicdashboard/activity_stream',
+        activitystream: 'local_dynamicdashboard/activity_stream',
 
-    chart: 'local_dynamicdashboard/chart_renderer'
-};
+        chart: 'local_dynamicdashboard/chart_renderer',
+        progress_circle: 'local_dynamicdashboard/progress_circle',
+        heatmap: 'local_dynamicdashboard/heatmap_renderer',
+        funnel: 'local_dynamicdashboard/funnel_renderer'
+    };
 
     /**
      * Load widget module dynamically.
+     *
      * @param {string} type Widget type.
-     * @returns {Promise|null} Loaded module promise.
+     * @returns {Promise|null}
      */
     function loadModule(type) {
         var moduleName = registry[type];
@@ -48,18 +52,19 @@ define([], function() {
     return {
         /**
          * Load and initialize widget.
+         *
          * @param {string} type Widget type.
          * @param {jQuery} $container Widget container.
          * @param {number|string} widgetId Widget ID.
          */
         load: function(type, $container, widgetId) {
+
             if (!type) {
                 return;
             }
 
             var module = loadModule(type);
 
-            // 🔥 FIX: prevent calling .then() on null
             if (!module) {
                 window.console.warn(
                     'DynamicDashboard: Unknown widget type:',
@@ -86,4 +91,5 @@ define([], function() {
             });
         }
     };
+
 });
