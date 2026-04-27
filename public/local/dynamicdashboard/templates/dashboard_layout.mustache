@@ -1,0 +1,12 @@
+<div class="dynamic-dashboard" data-userrole="{{role}}">
+    <header class="dashboard-header">
+        <h1>{{#str}}dashboard, local_dynamicdashboard{{/str}}</h1>
+    </header>
+    <div class="widget-grid" id="widget-grid">
+        {{#widgets}}
+            <div class="dynamic-widget widget-{{type}}" data-widget-id="{{id}}" data-widget-type="{{type}}">
+                {{{content}}}
+            </div>
+        {{/widgets}}
+    </div>
+</div>

@@ -1,0 +1,27 @@
+/* local/dynamicdashboard/styles.css */
+.dynamic-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+.widget-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+.dynamic-widget {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.dynamic-widget:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+/* Responsive breakpoints handled by classes added via AMD */
+.mobile-layout .widget-grid {
+    grid-template-columns: 1fr;
+}
