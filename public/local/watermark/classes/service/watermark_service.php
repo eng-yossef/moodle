@@ -70,6 +70,13 @@ class watermark_service {
      * @param \stdClass $user The current user.
      */
     public static function serve($file, $user) {
+
+     $enabled = (int) get_config('local_watermark', 'enabled');
+
+        if ($enabled !== 1) {
+            self::serve_original($file);
+            return;
+        }
         $mimetype = $file->get_mimetype();
 
         // Only watermark PDFs.
@@ -79,11 +86,11 @@ class watermark_service {
         }
 
         // Try to get from cache.
-        $cached = cache_service::get($file, $user);
-        if ($cached !== false) {
-            self::output($cached, $file->get_filename());
-            return;
-        }
+        // $cached = cache_service::get($file, $user);
+        // if ($cached !== false) {
+        //     self::output($cached, $file->get_filename());
+        //     return;
+        // }
 
         // Generate watermarked PDF.
         $watermarked = self::generate_watermarked_pdf($file, $user);
@@ -94,7 +101,7 @@ class watermark_service {
         }
 
         // Store in cache.
-        cache_service::store($file, $user, $watermarked);
+        // cache_service::store($file, $user, $watermarked);
 
         // Output.
         self::output($watermarked, $file->get_filename());
@@ -108,33 +115,35 @@ class watermark_service {
      * @return string|false PDF content or false on error.
      */
     private static function generate_watermarked_pdf($file, $user) {
-        try {
-            $tempfile = $file->copy_content_to_temp();
-            $pdf = new WatermarkPdf();
+    try {
+        $tempfile = $file->copy_content_to_temp();
+        $pdf = new WatermarkPdf();
 
-            // Get number of pages.
-            $pagecount = $pdf->setSourceFile($tempfile);
+        $pagecount = $pdf->setSourceFile($tempfile);
 
-            for ($pageno = 1; $pageno <= $pagecount; $pageno++) {
-                $template = $pdf->importPage($pageno);
-                $size = $pdf->getTemplateSize($template);
+        for ($pageno = 1; $pageno <= $pagecount; $pageno++) {
+            $template = $pdf->importPage($pageno);
+            $size = $pdf->getTemplateSize($template);
 
-                // Add a page with same orientation and dimensions.
-                $orientation = ($size['width'] > $size['height']) ? 'L' : 'P';
-                $pdf->AddPage($orientation, [$size['width'], $size['height']]);
-                $pdf->useTemplate($template);
+            $orientation = ($size['width'] > $size['height']) ? 'L' : 'P';
+            $pdf->AddPage($orientation, [$size['width'], $size['height']]);
+            $pdf->useTemplate($template, 0, 0, $size['width'], $size['height']); // ← explicit size
 
-                // Place watermark.
-                self::apply_watermark($pdf, $user);
-            }
-
-            // Return PDF as string.
-            return $pdf->Output('S');
-        } catch (\Exception $e) {
-            debugging('Watermark generation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
-            return false;
+            self::apply_watermark($pdf, $user);
         }
+
+        $output = $pdf->Output('', 'S'); // ← some FPDI versions need empty string as first arg
+        
+        // Clean up temp file
+        @unlink($tempfile);
+
+        return $output;
+
+    } catch (\Exception $e) {
+        debugging('Watermark generation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        return false;
     }
+}
 
     /**
      * Apply the watermark text on the current PDF page.
@@ -143,22 +152,23 @@ class watermark_service {
      * @param \stdClass $user Current user.
      */
     private static function apply_watermark($pdf, $user) {
-        $text = self::build_watermark_text($user);
+    $text = self::build_watermark_text($user);
 
-        $pdf->SetFont('helvetica', 'B', 30);
-        $pdf->SetTextColor(180, 180, 180); // Light gray.
+    $pdf->SetFont('Helvetica', 'B', 30); // ← fix font name casing only
+    $pdf->SetTextColor(180, 180, 180);
 
-        // Diagonal watermark across the page - rotate 45 degrees, place at center.
-        $pagew = $pdf->GetPageWidth();
-        $pageh = $pdf->GetPageHeight();
-        $centerX = $pagew / 2;
-        $centerY = $pageh / 2;
+    $pagew = $pdf->GetPageWidth();
+    $pageh = $pdf->GetPageHeight();
+    $centerX = $pagew / 2;
+    $centerY = $pageh / 2;
 
-        $pdf->Rotate(45, $centerX, $centerY);
-        $pdf->SetXY($centerX - 80, $centerY - 10);
-        $pdf->Cell(0, 10, $text, 0, 0, 'C');
-        $pdf->Rotate(0, $centerX, $centerY);
-    }
+    // Get text width to center it properly
+    $textWidth = $pdf->GetStringWidth($text);
+
+    $pdf->Rotate(45, $centerX, $centerY);
+    $pdf->Text($centerX - ($textWidth / 2), $centerY, $text); // ← Text() instead of Cell()
+    $pdf->Rotate(0, $centerX, $centerY);
+}
 
     /**
      * Build the watermark text from the admin template.
