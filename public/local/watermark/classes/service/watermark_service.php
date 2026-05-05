@@ -176,17 +176,20 @@ class watermark_service {
         return array_map('hexdec', str_split($hex, 2));
     };
 
+    // ---------------------------------------------------------------
     // --- Corner text ---
+    // ---------------------------------------------------------------
     $cornerEnabled = (bool) $cfg('corner_enabled', true);
     if ($cornerEnabled) {
         $fontSize   = (int) $cfg('corner_fontsize', 10);
         $colorHex   = $cfg('corner_textcolor', '#969696');
         $margin     = (float) $cfg('corner_margin', 10);
-        $rgb = $hex2rgb($colorHex);
+        $rgb        = $hex2rgb($colorHex);
+
         $pdf->SetFont('Helvetica', '', $fontSize);
         $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
 
-        $textWidth = $pdf->GetStringWidth($text);
+        $textWidth    = $pdf->GetStringWidth($text);
         $fontHeightMm = $fontSize * 0.3528;
 
         $corners = $cfg('corner_positions', 'top-left,bottom-left,bottom-right');
@@ -197,6 +200,7 @@ class watermark_service {
         }
 
         foreach ($corners as $corner) {
+            $corner = trim($corner);
             switch ($corner) {
                 case 'top-left':
                     $x = $margin;
@@ -221,40 +225,152 @@ class watermark_service {
         }
     }
 
+    // ---------------------------------------------------------------
     // --- Diagonal watermark ---
+    // ---------------------------------------------------------------
     $diagEnabled = (bool) $cfg('diagonal_enabled', true);
     if ($diagEnabled) {
-        $diagFontSize   = (int) $cfg('diagonal_fontsize', 25);
-        $diagColorHex   = $cfg('diagonal_textcolor', '#C8C8C8');
-        $diagAngle      = (int) $cfg('diagonal_angle', 45);
-        $diagOffsetX    = (int) $cfg('diagonal_offset_x', 0);
-        $diagOffsetY    = (int) $cfg('diagonal_offset_y', 0);
+        $diagFontSize = (int)   $cfg('diagonal_fontsize',  25);
+        $diagColorHex = (string)$cfg('diagonal_textcolor', '#C8C8C8');
+        $diagAngle    = (int)   $cfg('diagonal_angle',     45);
+        $diagOffsetX  = (float) $cfg('diagonal_offset_x',  0);
+        $diagOffsetY  = (float) $cfg('diagonal_offset_y',  0);
 
         $rgb = $hex2rgb($diagColorHex);
         $pdf->SetFont('Helvetica', 'B', $diagFontSize);
         $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
 
         $diagTextWidth = $pdf->GetStringWidth($text);
-        $centerX = $pagew / 2 + $diagOffsetX;
-        $centerY = $pageh / 2 + $diagOffsetY;
+        $centerX = ($pagew / 2) + $diagOffsetX;
+        $centerY = ($pageh / 2) + $diagOffsetY;
 
         $pdf->Rotate($diagAngle, $centerX, $centerY);
         $pdf->Text($centerX - ($diagTextWidth / 2), $centerY, $text);
-        $pdf->Rotate(0);
+        $pdf->Rotate(0); // reset rotation
     }
 
-    // --- Logo (static fallback, no file API) ---
+    // ---------------------------------------------------------------
+    // --- Logo via Moodle File API ---
+    // ---------------------------------------------------------------
     $logoEnabled = (bool) $cfg('logo_enabled', true);
-    if ($logoEnabled) {
-        $logoPath = __DIR__ . '/../../pix/logo.png';
-        if (file_exists($logoPath)) {
-            $logoWidth  = (float) $cfg('logo_width', 15);
-            $logoMargin = (float) $cfg('logo_margin', 10);
+    if (!$logoEnabled) {
+        return;
+    }
+
+    $logoWidth  = (float) $cfg('logo_width',  15);   // mm
+    $logoMargin = (float) $cfg('logo_margin', 10);   // mm
+    $logoPos    = (string)$cfg('logo_position', 'top-right'); // top-left|top-right|bottom-left|bottom-right
+
+    // Resolve X/Y from position setting.
+    // Note: logo height is unknown until after Image() is called (FPDF auto-calculates).
+    // We use $logoWidth as a safe approximation for bottom-edge Y offset.
+    switch ($logoPos) {
+        case 'top-left':
+            $xLogo = $logoMargin;
+            $yLogo = $logoMargin;
+            break;
+        case 'bottom-left':
+            $xLogo = $logoMargin;
+            $yLogo = $pageh - $logoWidth - $logoMargin; // approximate; adjust if needed
+            break;
+        case 'bottom-right':
+            $xLogo = $pagew - $logoWidth - $logoMargin;
+            $yLogo = $pageh - $logoWidth - $logoMargin;
+            break;
+        case 'top-right':
+        default:
             $xLogo = $pagew - $logoWidth - $logoMargin;
             $yLogo = $logoMargin;
-            $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth);
+            break;
+    }
+
+    // --- 1. Try Moodle File API first (admin-uploaded logo) ---
+    $logoTmpPath = self::get_logo_tmp_path();
+
+    if ($logoTmpPath !== null) {
+        try {
+            $ext          = strtolower(pathinfo($logoTmpPath, PATHINFO_EXTENSION));
+            $fpdfTypeMap  = ['png' => 'PNG', 'jpg' => 'JPEG', 'jpeg' => 'JPEG', 'gif' => 'GIF'];
+            $fpdfType     = $fpdfTypeMap[$ext] ?? null;
+
+            if ($fpdfType === null) {
+                throw new \RuntimeException("Unsupported logo extension: $ext");
+            }
+
+            // Pass explicit $type to bypass FPDF's extension sniffing.
+            // h=0 → FPDF auto-calculates height to preserve aspect ratio.
+            $pdf->Image($logoTmpPath, $xLogo, $yLogo, $logoWidth, 0, $fpdfType);
+
+        } catch (\Exception $e) {
+            // Log but never break the watermark pipeline.
+            debugging('local_watermark: logo render failed — ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+        // NOTE: Do NOT unlink here. Cleanup is handled by the caller
+        // after $pdf->Output() completes (see process_pdf()).
+        return;
+    }
+
+    // --- 2. Fallback: static pix/logo.png bundled with the plugin ---
+    $fallbackPath = __DIR__ . '/../../pix/logo.png';
+    if (file_exists($fallbackPath)) {
+        try {
+            $pdf->Image($fallbackPath, $xLogo, $yLogo, $logoWidth, 0, 'PNG');
+        } catch (\Exception $e) {
+            debugging('local_watermark: fallback logo render failed — ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
     }
+}
+
+// ---------------------------------------------------------------
+// Helper: extract Moodle stored logo to a temp file WITH extension.
+// Returns absolute path on success, null if no logo is stored.
+// Caller is responsible for unlinking AFTER $pdf->Output().
+// ---------------------------------------------------------------
+private static function get_logo_tmp_path(): ?string {
+    $fs      = get_file_storage();
+    $context = \context_system::instance();
+
+    $files = $fs->get_area_files(
+        $context->id,
+        'local_watermark',
+        'logo',
+        0,                             // itemid=0 for committed configstoredfile records
+        'itemid, filepath, filename',
+        false                          // exclude directories
+    );
+
+    foreach ($files as $file) {
+        if ($file->get_filename() === '.') {
+            continue; // skip directory placeholder
+        }
+
+        $ext = strtolower(pathinfo($file->get_filename(), PATHINFO_EXTENSION));
+
+        // tempnam() produces a file WITHOUT extension — FPDF requires one.
+        // Strategy: create a uniquely-named temp file, then rename with extension.
+        $base = tempnam(sys_get_temp_dir(), 'wm_logo_');
+        if ($base === false) {
+            debugging('local_watermark: could not create temp file', DEBUG_DEVELOPER);
+            return null;
+        }
+
+        $tmpPath = $base . '.' . $ext;  // e.g. /tmp/wm_logo_A3f9B2.png
+
+        $written = file_put_contents($tmpPath, $file->get_content());
+
+        // Remove the original extensionless file left behind by tempnam().
+        @unlink($base);
+
+        if ($written === false || $written === 0) {
+            @unlink($tmpPath);
+            debugging('local_watermark: failed to write logo temp file', DEBUG_DEVELOPER);
+            return null;
+        }
+
+        return $tmpPath; // return on first valid file
+    }
+
+    return null; // no logo uploaded
 }
     /**
      * Build the watermark text from the admin template.
