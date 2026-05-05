@@ -23,6 +23,7 @@ require_once(__DIR__ . '/../../vendor/autoload.php');
 
 use setasign\Fpdi\Fpdi;
 
+
 // Extend Fpdi to add Rotate functionality (similar to FPDF's Rotate)
 class WatermarkPdf extends Fpdi {
     protected $angle = 0;
@@ -159,58 +160,102 @@ class watermark_service {
      */
     private static function apply_watermark($pdf, $user) {
     $text = self::build_watermark_text($user);
-
     $pagew = $pdf->GetPageWidth();
     $pageh = $pdf->GetPageHeight();
-    $margin = 10;
 
-    // ================= TEXT STYLE =================
-    $fontSize = 10;
-    $pdf->SetFont('Helvetica', '', $fontSize);
-    $pdf->SetTextColor(150, 150, 150);
+    $cfg = function($key, $default) {
+        $val = get_config('local_watermark', $key);
+        return ($val === false || $val === null) ? $default : $val;
+    };
 
-    // ================= LOGO (TOP-RIGHT) =================
-    $logoPath = __DIR__ . '/../../pix/logo.png';
-    if (file_exists($logoPath)) {
-        $logoWidth = 15;
-        $xLogo = $pagew - $logoWidth - $margin;
-        $yLogo = $margin;
-        $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth);
+    $hex2rgb = function($hex) {
+        $hex = ltrim($hex, '#');
+        if (strlen($hex) == 3) {
+            $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+        }
+        return array_map('hexdec', str_split($hex, 2));
+    };
+
+    // --- Corner text ---
+    $cornerEnabled = (bool) $cfg('corner_enabled', true);
+    if ($cornerEnabled) {
+        $fontSize   = (int) $cfg('corner_fontsize', 10);
+        $colorHex   = $cfg('corner_textcolor', '#969696');
+        $margin     = (float) $cfg('corner_margin', 10);
+        $rgb = $hex2rgb($colorHex);
+        $pdf->SetFont('Helvetica', '', $fontSize);
+        $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
+
+        $textWidth = $pdf->GetStringWidth($text);
+        $fontHeightMm = $fontSize * 0.3528;
+
+        $corners = $cfg('corner_positions', 'top-left,bottom-left,bottom-right');
+        if (!is_array($corners)) {
+            $corners = explode(',', $corners);
+        } else {
+            $corners = array_keys(array_filter($corners));
+        }
+
+        foreach ($corners as $corner) {
+            switch ($corner) {
+                case 'top-left':
+                    $x = $margin;
+                    $y = $margin + $fontHeightMm;
+                    break;
+                case 'top-right':
+                    $x = $pagew - $textWidth - $margin;
+                    $y = $margin + $fontHeightMm;
+                    break;
+                case 'bottom-left':
+                    $x = $margin;
+                    $y = $pageh - $margin;
+                    break;
+                case 'bottom-right':
+                    $x = $pagew - $textWidth - $margin;
+                    $y = $pageh - $margin;
+                    break;
+                default:
+                    continue 2;
+            }
+            $pdf->Text($x, $y, $text);
+        }
     }
 
-    // ================= CORNER TEXT =================
-    $textWidth = $pdf->GetStringWidth($text);
-    $fontHeightMm = $fontSize * 0.3528;
+    // --- Diagonal watermark ---
+    $diagEnabled = (bool) $cfg('diagonal_enabled', true);
+    if ($diagEnabled) {
+        $diagFontSize   = (int) $cfg('diagonal_fontsize', 25);
+        $diagColorHex   = $cfg('diagonal_textcolor', '#C8C8C8');
+        $diagAngle      = (int) $cfg('diagonal_angle', 45);
+        $diagOffsetX    = (int) $cfg('diagonal_offset_x', 0);
+        $diagOffsetY    = (int) $cfg('diagonal_offset_y', 0);
 
-    $xLeft   = $margin;
-    $xRight  = $pagew - $textWidth - $margin;
-    $yTop    = $margin + $fontHeightMm;
-    $yBottom = $pageh - $margin;
+        $rgb = $hex2rgb($diagColorHex);
+        $pdf->SetFont('Helvetica', 'B', $diagFontSize);
+        $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
 
-    // Top-left
-    $pdf->Text($xLeft, $yTop, $text);
+        $diagTextWidth = $pdf->GetStringWidth($text);
+        $centerX = $pagew / 2 + $diagOffsetX;
+        $centerY = $pageh / 2 + $diagOffsetY;
 
-    // Bottom-left
-    $pdf->Text($xLeft, $yBottom, $text);
+        $pdf->Rotate($diagAngle, $centerX, $centerY);
+        $pdf->Text($centerX - ($diagTextWidth / 2), $centerY, $text);
+        $pdf->Rotate(0);
+    }
 
-    // Bottom-right
-    $pdf->Text($xRight, $yBottom, $text);
-
-    // ================= DIAGONAL WATERMARK =================
-    $pdf->SetFont('Helvetica', 'B', 25);
-    $pdf->SetTextColor(200, 200, 200); // lighter for background effect
-
-    $centerX = $pagew / 2;
-    $centerY = $pageh / 2;
-
-    $diagTextWidth = $pdf->GetStringWidth($text);
-
-    // Rotate and center
-    $pdf->Rotate(45, $centerX, $centerY);
-    $pdf->Text($centerX - ($diagTextWidth / 2), $centerY, $text);
-    $pdf->Rotate(0);
+    // --- Logo (static fallback, no file API) ---
+    $logoEnabled = (bool) $cfg('logo_enabled', true);
+    if ($logoEnabled) {
+        $logoPath = __DIR__ . '/../../pix/logo.png';
+        if (file_exists($logoPath)) {
+            $logoWidth  = (float) $cfg('logo_width', 15);
+            $logoMargin = (float) $cfg('logo_margin', 10);
+            $xLogo = $pagew - $logoWidth - $logoMargin;
+            $yLogo = $logoMargin;
+            $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth);
+        }
+    }
 }
-
     /**
      * Build the watermark text from the admin template.
      *
