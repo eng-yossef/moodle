@@ -146,7 +146,13 @@ class watermark_service {
 }
 
     /**
-     * Apply the watermark text on the current PDF page.
+     * Apply watermark text in three corners and a logo in the top‑right.
+     *
+     * @param WatermarkPdf $pdf PDF instance.
+     * @param \stdClass $user Current user.
+     */
+        /**
+     * Apply watermark text in three corners and a logo in the top‑right.
      *
      * @param WatermarkPdf $pdf PDF instance.
      * @param \stdClass $user Current user.
@@ -154,20 +160,55 @@ class watermark_service {
     private static function apply_watermark($pdf, $user) {
     $text = self::build_watermark_text($user);
 
-    $pdf->SetFont('Helvetica', 'B', 30); // ← fix font name casing only
-    $pdf->SetTextColor(180, 180, 180);
-
     $pagew = $pdf->GetPageWidth();
     $pageh = $pdf->GetPageHeight();
+    $margin = 10;
+
+    // ================= TEXT STYLE =================
+    $fontSize = 10;
+    $pdf->SetFont('Helvetica', '', $fontSize);
+    $pdf->SetTextColor(150, 150, 150);
+
+    // ================= LOGO (TOP-RIGHT) =================
+    $logoPath = __DIR__ . '/../../pix/logo.png';
+    if (file_exists($logoPath)) {
+        $logoWidth = 15;
+        $xLogo = $pagew - $logoWidth - $margin;
+        $yLogo = $margin;
+        $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth);
+    }
+
+    // ================= CORNER TEXT =================
+    $textWidth = $pdf->GetStringWidth($text);
+    $fontHeightMm = $fontSize * 0.3528;
+
+    $xLeft   = $margin;
+    $xRight  = $pagew - $textWidth - $margin;
+    $yTop    = $margin + $fontHeightMm;
+    $yBottom = $pageh - $margin;
+
+    // Top-left
+    $pdf->Text($xLeft, $yTop, $text);
+
+    // Bottom-left
+    $pdf->Text($xLeft, $yBottom, $text);
+
+    // Bottom-right
+    $pdf->Text($xRight, $yBottom, $text);
+
+    // ================= DIAGONAL WATERMARK =================
+    $pdf->SetFont('Helvetica', 'B', 25);
+    $pdf->SetTextColor(200, 200, 200); // lighter for background effect
+
     $centerX = $pagew / 2;
     $centerY = $pageh / 2;
 
-    // Get text width to center it properly
-    $textWidth = $pdf->GetStringWidth($text);
+    $diagTextWidth = $pdf->GetStringWidth($text);
 
+    // Rotate and center
     $pdf->Rotate(45, $centerX, $centerY);
-    $pdf->Text($centerX - ($textWidth / 2), $centerY, $text); // ← Text() instead of Cell()
-    $pdf->Rotate(0, $centerX, $centerY);
+    $pdf->Text($centerX - ($diagTextWidth / 2), $centerY, $text);
+    $pdf->Rotate(0);
 }
 
     /**
