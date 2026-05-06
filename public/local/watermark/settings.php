@@ -184,4 +184,34 @@ if ($hassiteconfig) {
         '10',
         PARAM_INT
     ));
+
+    // ---------- Background Overlay ----------
+    $settings->add(new admin_setting_heading('local_watermark/background_heading',
+        get_string('background_heading', 'local_watermark'),
+        get_string('background_heading_desc', 'local_watermark')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_watermark/background_enabled',
+        get_string('background_enabled', 'local_watermark'),
+        get_string('background_enabled_desc', 'local_watermark'),
+        0
+    ));
+
+    $settings->add(new admin_setting_configstoredfile(
+        'local_watermark/background_file',
+        get_string('background_file', 'local_watermark'),
+        get_string('background_file_desc', 'local_watermark'),
+        'background', // filearea
+        0,
+        ['maxfiles' => 1, 'accepted_types' => ['.png', '.jpg', '.jpeg']]
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_watermark/background_alpha',
+        get_string('background_alpha', 'local_watermark'),
+        get_string('background_alpha_desc', 'local_watermark'),
+        '0.15',
+        PARAM_FLOAT
+    ));
 }

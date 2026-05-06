@@ -194,18 +194,22 @@ class watermark_service {
     }
 
     // ── Watermark rendering ─────────────────────────────────────────────────
-
+/**
+     * Draw all enabled watermark layers (Background, Corner Text, Diagonal Text, and Logo).
+     */
     private static function apply_watermark(WatermarkPdf $pdf, \stdClass $user): void {
 
         $text  = self::build_watermark_text($user);
         $pagew = $pdf->GetPageWidth();
         $pageh = $pdf->GetPageHeight();
 
+        // Helper: read config with fallback default.
         $cfg = static function (string $key, $default) {
             $val = get_config('local_watermark', $key);
             return ($val === false || $val === null || $val === '') ? $default : $val;
         };
 
+        // Helper: #rrggbb → [r, g, b].
         $hex2rgb = static function (string $hex): array {
             $hex = ltrim($hex, '#');
             if (strlen($hex) === 3) {
@@ -214,24 +218,37 @@ class watermark_service {
             return array_map('hexdec', str_split($hex, 2));
         };
 
-        // ── 1. Full-page background overlay
-        $bgPath = __DIR__ . '/../../pix/background.png';
-        if (file_exists($bgPath)) {
-            try {
-                $bgAlpha = (float) $cfg('background_alpha', 0.15);
-                $pdf->_out('q');
-                $pdf->SetAlpha($bgAlpha);
-                $pdf->Image($bgPath, 0, 0, $pagew, $pageh, 'PNG');
-                $pdf->_out('Q');
-                $pdf->SetAlpha(1.0);
-            } catch (\Throwable $e) {
-                $pdf->_out('Q');
-                $pdf->SetAlpha(1.0);
-                error_log('local_watermark | background overlay failed: ' . $e->getMessage());
+        // ── 1. Full-page background overlay (Dynamic) ────────────────────────
+        if ((bool) $cfg('background_enabled', false)) {
+            // Try admin-uploaded background first, then fallback to bundled pix.
+            $bgPath = self::get_background_tmp_path() ?? (__DIR__ . '/../../pix/background.png');
+            
+            if ($bgPath && file_exists($bgPath)) {
+                try {
+                    $bgAlpha = (float) $cfg('background_alpha', 0.15);
+                    $pdf->_out('q'); // Start graphics state isolation
+                    $pdf->SetAlpha($bgAlpha);
+
+                    // Detect image type (Required because Moodle temp files lack extensions)
+                    $bgType = null;
+                    $bgInfo = @getimagesize($bgPath);
+                    if ($bgInfo) {
+                        $typeMap = [IMAGETYPE_PNG => 'PNG', IMAGETYPE_JPEG => 'JPEG', IMAGETYPE_GIF => 'GIF'];
+                        $bgType = $typeMap[$bgInfo[2]] ?? null;
+                    }
+
+                    $pdf->Image($bgPath, 0, 0, $pagew, $pageh, $bgType);
+                    $pdf->_out('Q'); // Restore graphics state
+                    $pdf->SetAlpha(1.0); // Reset tracking
+                } catch (\Throwable $e) {
+                    $pdf->_out('Q');
+                    $pdf->SetAlpha(1.0);
+                    error_log('local_watermark | background overlay failed: ' . $e->getMessage());
+                }
             }
         }
 
-        // ── 2. Corner text
+        // ── 2. Corner text ────────────────────────────────────────────────────
         if ((bool) $cfg('corner_enabled', true)) {
             $fontSize = (int)   $cfg('corner_fontsize',  10);
             $colorHex = (string)$cfg('corner_textcolor', '#969696');
@@ -243,7 +260,7 @@ class watermark_service {
             $pdf->SetAlpha(1.0);
 
             $textWidth    = $pdf->GetStringWidth($text);
-            $fontHeightMm = $fontSize * 0.3528;
+            $fontHeightMm = $fontSize * 0.3528; // pt to mm
 
             $rawCorners = $cfg('corner_positions', 'top-left,bottom-left,bottom-right,top-right');
             $corners    = is_array($rawCorners)
@@ -262,7 +279,7 @@ class watermark_service {
             }
         }
 
-        // ── 3. Diagonal watermark
+        // ── 3. Diagonal watermark ─────────────────────────────────────────────
         if ((bool) $cfg('diagonal_enabled', true)) {
             $fontSize = (int)   $cfg('diagonal_fontsize',  25);
             $colorHex = (string)$cfg('diagonal_textcolor', '#C8C8C8');
@@ -281,64 +298,60 @@ class watermark_service {
 
             $pdf->Rotate($angle, $centerX, $centerY);
             $pdf->Text($centerX - ($textWidth / 2), $centerY, $text);
-            $pdf->Rotate(0, $centerX, $centerY);
+            $pdf->Rotate(0, $centerX, $centerY); // Reset rotation matrix
         }
 
-        // ── 4. Logo
-        if (!(bool) $cfg('logo_enabled', false)) {
-            return;
-        }
+        // ── 4. Logo ───────────────────────────────────────────────────────────
+        if ((bool) $cfg('logo_enabled', false)) {
+            $logoWidth  = (float)  $cfg('logo_width',    15);
+            $logoMargin = (float)  $cfg('logo_margin',   10);
+            $logoPos    = (string) $cfg('logo_position', 'top-right');
 
-        $logoWidth  = (float)  $cfg('logo_width',    15);
-        $logoMargin = (float)  $cfg('logo_margin',   10);
-        $logoPos    = (string) $cfg('logo_position', 'top-right');
+            switch ($logoPos) {
+                case 'top-left':     $xLogo = $logoMargin; $yLogo = $logoMargin; break;
+                case 'bottom-left':  $xLogo = $logoMargin; $yLogo = $pageh - $logoWidth - $logoMargin; break;
+                case 'bottom-right': $xLogo = $pagew - $logoWidth - $logoMargin; $yLogo = $pageh - $logoWidth - $logoMargin; break;
+                case 'top-right':
+                default:             $xLogo = $pagew - $logoWidth - $logoMargin; $yLogo = $logoMargin; break;
+            }
 
-        switch ($logoPos) {
-            case 'top-left':     $xLogo = $logoMargin; $yLogo = $logoMargin; break;
-            case 'bottom-left':  $xLogo = $logoMargin; $yLogo = $pageh - $logoWidth - $logoMargin; break;
-            case 'bottom-right': $xLogo = $pagew - $logoWidth - $logoMargin; $yLogo = $pageh - $logoWidth - $logoMargin; break;
-            case 'top-right':
-            default:             $xLogo = $pagew - $logoWidth - $logoMargin; $yLogo = $logoMargin; break;
-        }
+            $pdf->SetAlpha(1.0);
+            $logoPath = self::get_logo_tmp_path() ?? (__DIR__ . '/../../pix/logo.png');
 
-        $pdf->SetAlpha(1.0);
+            if ($logoPath && file_exists($logoPath)) {
+                try {
+                    $logoType = null;
+                    $logoInfo = @getimagesize($logoPath);
+                    if ($logoInfo) {
+                        $typeMap = [IMAGETYPE_PNG => 'PNG', IMAGETYPE_JPEG => 'JPEG', IMAGETYPE_GIF => 'GIF'];
+                        $logoType = $typeMap[$logoInfo[2]] ?? null;
+                    }
 
-        $logoPath = self::get_logo_tmp_path() ?? (__DIR__ . '/../../pix/logo.png');
-
-        if ($logoPath && file_exists($logoPath)) {
-            try {
-                $type = null;
-
-                // Safely detect MIME type, as Moodle temp files drop their extensions
-                $info = @getimagesize($logoPath);
-                if ($info) {
-                    $typeMap = [
-                        IMAGETYPE_PNG => 'PNG',
-                        IMAGETYPE_JPEG => 'JPEG',
-                        IMAGETYPE_GIF => 'GIF'
-                    ];
-                    $type = $typeMap[$info[2]] ?? null;
+                    if ($logoType !== null) {
+                        $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth, 0, $logoType);
+                    }
+                } catch (\Throwable $e) {
+                    error_log('local_watermark | logo render failed: ' . $e->getMessage());
                 }
-                
-                // Fallback to extension check if getimagesize fails
-                if (!$type) {
-                    $ext = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
-                    $extMap = ['png' => 'PNG', 'jpg' => 'JPEG', 'jpeg' => 'JPEG', 'gif' => 'GIF'];
-                    $type = $extMap[$ext] ?? null;
-                }
-
-                if ($type === null) {
-                    throw new \RuntimeException("Unsupported logo format.");
-                }
-
-                $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth, 0, $type);
-            } catch (\Throwable $e) {
-                error_log('local_watermark | logo render failed: ' . $e->getMessage());
             }
         }
     }
-
+    
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Copy the admin-uploaded background to a temp file.
+     */
+    private static function get_background_tmp_path(): ?string {
+        $fs = get_file_storage();
+        $context = \context_system::instance();
+        $files = $fs->get_area_files($context->id, 'local_watermark', 'background', 0, 'id DESC', false);
+
+        foreach ($files as $f) {
+            return $f->copy_content_to_temp();
+        }
+        return null;
+    }
 
     private static function build_watermark_text(\stdClass $user): string {
         $template = get_config('local_watermark', 'template');

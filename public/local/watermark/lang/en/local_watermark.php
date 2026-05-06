@@ -70,3 +70,15 @@ $string['logo_width'] = 'Logo width';
 $string['logo_width_desc'] = 'Width in mm (height scales proportionally).';
 $string['logo_margin'] = 'Logo margin';
 $string['logo_margin_desc'] = 'Distance from the edges (mm).';
+
+$string['background_heading'] = 'Background Watermark Settings';
+$string['background_heading_desc'] = 'Configure the background watermark that appears behind page content.';
+
+$string['background_enabled'] = 'Enable background watermark';
+$string['background_enabled_desc'] = 'If enabled, a background image watermark will be applied to pages.';
+
+$string['background_file'] = 'Background image';
+$string['background_file_desc'] = 'Upload an image to use as the background watermark. Supported formats: JPG, PNG.';
+
+$string['background_alpha'] = 'Background opacity';
+$string['background_alpha_desc'] = 'Set the transparency level of the background watermark (0 = fully transparent, 1 = fully visible). Recommended: 0.1 – 0.3.';
