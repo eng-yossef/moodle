@@ -54,6 +54,18 @@ class core_renderer extends \core_renderer {
         return $this->render_single_button($button);
     }
 
+    public function login_page() {
+    $context = parent::login_page();
+
+    $logo = $this->page->theme->setting_file_url('logo', 'logo');
+
+    if ($logo) {
+        $context['logourl'] = $logo;
+    }
+
+    return $context;
+}
+
     /**
      * Renders the "breadcrumb" for all pages in boost.
      *

@@ -80,6 +80,21 @@ if ($ADMIN->fulltree) {
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
+$name = 'theme_boost/logo';
+$title = get_string('logo', 'theme_boost');
+$description = get_string('logodesc', 'theme_boost');
+
+$setting = new admin_setting_configstoredfile(
+    $name,
+    $title,
+    $description,
+    'logo'
+);
+
+$setting->set_updatedcallback('theme_reset_all_caches');
+$page->add($setting);
+    
+
     // We use an empty default value because the default colour should come from the preset.
     $name = 'theme_boost/brandcolor';
     $title = get_string('brandcolor', 'theme_boost');
