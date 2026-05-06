@@ -18,410 +18,385 @@ namespace local_watermark\service;
 
 defined('MOODLE_INTERNAL') || die();
 
-// Load Composer's autoloader for FPDI and FPDF.
 require_once(__DIR__ . '/../../vendor/autoload.php');
 
 use setasign\Fpdi\Fpdi;
 
-
-// Extend Fpdi to add Rotate functionality (similar to FPDF's Rotate)
+// ---------------------------------------------------------------------------
+// WatermarkPdf — extends FPDI with rotation + alpha (transparency) support.
+// ---------------------------------------------------------------------------
 class WatermarkPdf extends Fpdi {
+
+    // Tracks current rotation angle so _endpage() can close the q/Q block.
     protected $angle = 0;
 
-    function Rotate($angle, $x = -1, $y = -1) {
-        if ($x == -1)
-            $x = $this->x;
-        if ($y == -1)
-            $y = $this->y;
-        if ($this->angle != 0)
-            $this->_out('Q');
-        $this->angle = $angle;
-        if ($angle != 0) {
-            $angle *= M_PI / 180;
-            $c = cos($angle);
-            $s = sin($angle);
-            $cx = $x * $this->k;
-            $cy = ($this->h - $y) * $this->k;
-            $this->_out(sprintf('q %.5F %.5F %.5F %.5F %.2F %.2F cm 1 0 0 1 %.2F %.2F cm', $c, $s, -$s, $c, $cx, $cy, -$cx, -$cy));
+    // Use a custom name to prevent overriding FPDF's native $extgstates
+    // (which FPDF relies on to process PNG alpha channels like the logo).
+    protected $watermark_extgstates = [];
+
+    public function __construct($orientation = 'P', $unit = 'mm', $size = 'A4') {
+        parent::__construct($orientation, $unit, $size);
+        if (version_compare($this->PDFVersion, '1.4', '<')) {
+            $this->PDFVersion = '1.4';
         }
     }
 
-    function _endpage() {
+    // ── Alpha / transparency ────────────────────────────────────────────────
+
+    public function SetAlpha(float $alpha): void {
+        $alpha  = max(0.0, min(1.0, $alpha));
+        $gsName = 'GS_A' . str_replace('.', 'p', number_format($alpha, 2));
+
+        if (!array_key_exists($gsName, $this->watermark_extgstates)) {
+            $this->watermark_extgstates[$gsName] = [
+                'n' => 0,
+                'alpha' => $alpha
+            ];
+        }
+
+        $this->_out('/' . $gsName . ' gs');
+    }
+
+    protected function _put_watermark_extgstates(): void {
+        foreach ($this->watermark_extgstates as $gsName => &$gs) {
+            $this->_newobj();
+            $gs['n'] = $this->n;
+            $this->_put('<</Type /ExtGState');
+            $this->_put(sprintf('/ca %.4F', $gs['alpha'])); // Non-stroking
+            $this->_put(sprintf('/CA %.4F', $gs['alpha'])); // Stroking
+            $this->_put('/BM /Normal');
+            $this->_put('>>');
+            $this->_put('endobj');
+        }
+    }
+
+    protected function _putresourcedict(): void {
+        // Track the buffer length so we can securely modify the dictionary
+        $startLen = strlen($this->buffer);
+        parent::_putresourcedict();
+
+        if (!empty($this->watermark_extgstates)) {
+            $myExtGState = '';
+            foreach ($this->watermark_extgstates as $gsName => $gs) {
+                $myExtGState .= '/' . $gsName . ' ' . $gs['n'] . ' 0 R ';
+            }
+
+            $dictChunk = substr($this->buffer, $startLen);
+
+            // Safely inject our custom alpha states to avoid duplicate ExtGState keys
+            // which causes Acrobat/PDF viewers to drop images.
+            if (strpos($dictChunk, '/ExtGState <<') !== false) {
+                $dictChunk = str_replace('/ExtGState <<', '/ExtGState << ' . $myExtGState, $dictChunk);
+                $this->buffer = substr($this->buffer, 0, $startLen) . $dictChunk;
+            } else {
+                $this->_put('/ExtGState << ' . $myExtGState . '>>');
+            }
+        }
+    }
+
+    protected function _putresources(): void {
+        $this->_put_watermark_extgstates();
+        parent::_putresources();
+    }
+
+    // ── Rotation ────────────────────────────────────────────────────────────
+
+    public function Rotate(float $angle, float $x = -1, float $y = -1): void {
+        if ($x == -1) $x = $this->x;
+        if ($y == -1) $y = $this->y;
+
+        if ($this->angle != 0) {
+            $this->_out('Q');
+        }
+
+        $this->angle = $angle;
+
+        if ($angle != 0) {
+            $rad = $angle * M_PI / 180;
+            $c   = cos($rad);
+            $s   = sin($rad);
+            $cx  = $x * $this->k;
+            $cy  = ($this->h - $y) * $this->k;
+            $this->_out(sprintf(
+                'q %.5F %.5F %.5F %.5F %.2F %.2F cm 1 0 0 1 %.2F %.2F cm',
+                $c, $s, -$s, $c, $cx, $cy, -$cx, -$cy
+            ));
+        }
+    }
+
+    public function _endpage(): void {
         if ($this->angle != 0) {
             $this->angle = 0;
             $this->_out('Q');
         }
         parent::_endpage();
     }
-
-    // Optional: add text with rotation at given coordinates
-    function RotatedText($x, $y, $txt, $angle) {
-        $this->Rotate($angle, $x, $y);
-        $this->Text($x, $y, $txt);
-        $this->Rotate(0);
-    }
 }
 
+// ---------------------------------------------------------------------------
+// watermark_service
+// ---------------------------------------------------------------------------
 class watermark_service {
 
-    /**
-     * Serve a file – watermarked if PDF, otherwise unchanged.
-     *
-     * @param \stored_file $file The file to serve.
-     * @param \stdClass $user The current user.
-     */
-    public static function serve($file, $user) {
+    public static function serve(\stored_file $file, \stdClass $user): void {
 
-     $enabled = (int) get_config('local_watermark', 'enabled');
-
-        if ($enabled !== 1) {
-            self::serve_original($file);
-            return;
-        }
-        $mimetype = $file->get_mimetype();
-
-        // Only watermark PDFs.
-        if ($mimetype !== 'application/pdf') {
+        if (!get_config('local_watermark', 'enabled')) {
             self::serve_original($file);
             return;
         }
 
-        // Try to get from cache.
-        // $cached = cache_service::get($file, $user);
-        // if ($cached !== false) {
-        //     self::output($cached, $file->get_filename());
-        //     return;
-        // }
+        if ($file->get_mimetype() !== 'application/pdf') {
+            self::serve_original($file);
+            return;
+        }
 
-        // Generate watermarked PDF.
         $watermarked = self::generate_watermarked_pdf($file, $user);
+
         if ($watermarked === false) {
-            // Fallback: serve original if watermarking fails.
             self::serve_original($file);
             return;
         }
 
-        // Store in cache.
-        // cache_service::store($file, $user, $watermarked);
-
-        // Output.
-        self::output($watermarked, $file->get_filename());
+        self::output_pdf($watermarked, $file->get_filename());
     }
 
-    /**
-     * Generate a watermarked PDF as a string.
-     *
-     * @param \stored_file $file Original PDF.
-     * @param \stdClass $user Current user.
-     * @return string|false PDF content or false on error.
-     */
-    private static function generate_watermarked_pdf($file, $user) {
-    try {
-        $tempfile = $file->copy_content_to_temp();
-        $pdf = new WatermarkPdf();
+    // ── PDF generation ──────────────────────────────────────────────────────
 
-        $pagecount = $pdf->setSourceFile($tempfile);
-
-        for ($pageno = 1; $pageno <= $pagecount; $pageno++) {
-            $template = $pdf->importPage($pageno);
-            $size = $pdf->getTemplateSize($template);
-
-            $orientation = ($size['width'] > $size['height']) ? 'L' : 'P';
-            $pdf->AddPage($orientation, [$size['width'], $size['height']]);
-            $pdf->useTemplate($template, 0, 0, $size['width'], $size['height']); // ← explicit size
-
-            self::apply_watermark($pdf, $user);
-        }
-
-        $output = $pdf->Output('', 'S'); // ← some FPDI versions need empty string as first arg
-        
-        // Clean up temp file
-        @unlink($tempfile);
-
-        return $output;
-
-    } catch (\Exception $e) {
-        debugging('Watermark generation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
-        return false;
-    }
-}
-
-    /**
-     * Apply watermark text in three corners and a logo in the top‑right.
-     *
-     * @param WatermarkPdf $pdf PDF instance.
-     * @param \stdClass $user Current user.
-     */
-        /**
-     * Apply watermark text in three corners and a logo in the top‑right.
-     *
-     * @param WatermarkPdf $pdf PDF instance.
-     * @param \stdClass $user Current user.
-     */
-    private static function apply_watermark($pdf, $user) {
-    $text = self::build_watermark_text($user);
-    $pagew = $pdf->GetPageWidth();
-    $pageh = $pdf->GetPageHeight();
-
-    $cfg = function($key, $default) {
-        $val = get_config('local_watermark', $key);
-        return ($val === false || $val === null) ? $default : $val;
-    };
-
-    $hex2rgb = function($hex) {
-        $hex = ltrim($hex, '#');
-        if (strlen($hex) == 3) {
-            $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-        }
-        return array_map('hexdec', str_split($hex, 2));
-    };
-
-    // ---------------------------------------------------------------
-    // --- Corner text ---
-    // ---------------------------------------------------------------
-    $cornerEnabled = (bool) $cfg('corner_enabled', true);
-    if ($cornerEnabled) {
-        $fontSize   = (int) $cfg('corner_fontsize', 10);
-        $colorHex   = $cfg('corner_textcolor', '#969696');
-        $margin     = (float) $cfg('corner_margin', 10);
-        $rgb        = $hex2rgb($colorHex);
-
-        $pdf->SetFont('Helvetica', '', $fontSize);
-        $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
-
-        $textWidth    = $pdf->GetStringWidth($text);
-        $fontHeightMm = $fontSize * 0.3528;
-
-        $corners = $cfg('corner_positions', 'top-left,bottom-left,bottom-right');
-        if (!is_array($corners)) {
-            $corners = explode(',', $corners);
-        } else {
-            $corners = array_keys(array_filter($corners));
-        }
-
-        foreach ($corners as $corner) {
-            $corner = trim($corner);
-            switch ($corner) {
-                case 'top-left':
-                    $x = $margin;
-                    $y = $margin + $fontHeightMm;
-                    break;
-                case 'top-right':
-                    $x = $pagew - $textWidth - $margin;
-                    $y = $margin + $fontHeightMm;
-                    break;
-                case 'bottom-left':
-                    $x = $margin;
-                    $y = $pageh - $margin;
-                    break;
-                case 'bottom-right':
-                    $x = $pagew - $textWidth - $margin;
-                    $y = $pageh - $margin;
-                    break;
-                default:
-                    continue 2;
-            }
-            $pdf->Text($x, $y, $text);
-        }
-    }
-
-    // ---------------------------------------------------------------
-    // --- Diagonal watermark ---
-    // ---------------------------------------------------------------
-    $diagEnabled = (bool) $cfg('diagonal_enabled', true);
-    if ($diagEnabled) {
-        $diagFontSize = (int)   $cfg('diagonal_fontsize',  25);
-        $diagColorHex = (string)$cfg('diagonal_textcolor', '#C8C8C8');
-        $diagAngle    = (int)   $cfg('diagonal_angle',     45);
-        $diagOffsetX  = (float) $cfg('diagonal_offset_x',  0);
-        $diagOffsetY  = (float) $cfg('diagonal_offset_y',  0);
-
-        $rgb = $hex2rgb($diagColorHex);
-        $pdf->SetFont('Helvetica', 'B', $diagFontSize);
-        $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
-
-        $diagTextWidth = $pdf->GetStringWidth($text);
-        $centerX = ($pagew / 2) + $diagOffsetX;
-        $centerY = ($pageh / 2) + $diagOffsetY;
-
-        $pdf->Rotate($diagAngle, $centerX, $centerY);
-        $pdf->Text($centerX - ($diagTextWidth / 2), $centerY, $text);
-        $pdf->Rotate(0); // reset rotation
-    }
-
-    // ---------------------------------------------------------------
-    // --- Logo via Moodle File API ---
-    // ---------------------------------------------------------------
-    $logoEnabled = (bool) $cfg('logo_enabled', true);
-    if (!$logoEnabled) {
-        return;
-    }
-
-    $logoWidth  = (float) $cfg('logo_width',  15);   // mm
-    $logoMargin = (float) $cfg('logo_margin', 10);   // mm
-    $logoPos    = (string)$cfg('logo_position', 'top-right'); // top-left|top-right|bottom-left|bottom-right
-
-    // Resolve X/Y from position setting.
-    // Note: logo height is unknown until after Image() is called (FPDF auto-calculates).
-    // We use $logoWidth as a safe approximation for bottom-edge Y offset.
-    switch ($logoPos) {
-        case 'top-left':
-            $xLogo = $logoMargin;
-            $yLogo = $logoMargin;
-            break;
-        case 'bottom-left':
-            $xLogo = $logoMargin;
-            $yLogo = $pageh - $logoWidth - $logoMargin; // approximate; adjust if needed
-            break;
-        case 'bottom-right':
-            $xLogo = $pagew - $logoWidth - $logoMargin;
-            $yLogo = $pageh - $logoWidth - $logoMargin;
-            break;
-        case 'top-right':
-        default:
-            $xLogo = $pagew - $logoWidth - $logoMargin;
-            $yLogo = $logoMargin;
-            break;
-    }
-
-    // --- 1. Try Moodle File API first (admin-uploaded logo) ---
-    $logoTmpPath = self::get_logo_tmp_path();
-
-    if ($logoTmpPath !== null) {
+    private static function generate_watermarked_pdf(\stored_file $file, \stdClass $user) {
+        $tempfile = null;
         try {
-            $ext          = strtolower(pathinfo($logoTmpPath, PATHINFO_EXTENSION));
-            $fpdfTypeMap  = ['png' => 'PNG', 'jpg' => 'JPEG', 'jpeg' => 'JPEG', 'gif' => 'GIF'];
-            $fpdfType     = $fpdfTypeMap[$ext] ?? null;
+            $tempfile  = $file->copy_content_to_temp();
+            $pdf       = new WatermarkPdf();
 
-            if ($fpdfType === null) {
-                throw new \RuntimeException("Unsupported logo extension: $ext");
+            $pagecount = $pdf->setSourceFile($tempfile);
+
+            for ($pageno = 1; $pageno <= $pagecount; $pageno++) {
+                $tpl  = $pdf->importPage($pageno);
+                $size = $pdf->getTemplateSize($tpl);
+
+                $orientation = ($size['width'] > $size['height']) ? 'L' : 'P';
+                $pdf->AddPage($orientation, [$size['width'], $size['height']]);
+
+                $pdf->useTemplate($tpl, 0, 0, $size['width'], $size['height']);
+                self::apply_watermark($pdf, $user);
             }
 
-            // Pass explicit $type to bypass FPDF's extension sniffing.
-            // h=0 → FPDF auto-calculates height to preserve aspect ratio.
-            $pdf->Image($logoTmpPath, $xLogo, $yLogo, $logoWidth, 0, $fpdfType);
+            return $pdf->Output('', 'S');
 
-        } catch (\Exception $e) {
-            // Log but never break the watermark pipeline.
-            debugging('local_watermark: logo render failed — ' . $e->getMessage(), DEBUG_DEVELOPER);
-        }
-        // NOTE: Do NOT unlink here. Cleanup is handled by the caller
-        // after $pdf->Output() completes (see process_pdf()).
-        return;
-    }
-
-    // --- 2. Fallback: static pix/logo.png bundled with the plugin ---
-    $fallbackPath = __DIR__ . '/../../pix/logo.png';
-    if (file_exists($fallbackPath)) {
-        try {
-            $pdf->Image($fallbackPath, $xLogo, $yLogo, $logoWidth, 0, 'PNG');
-        } catch (\Exception $e) {
-            debugging('local_watermark: fallback logo render failed — ' . $e->getMessage(), DEBUG_DEVELOPER);
+        } catch (\Throwable $e) {
+            error_log('local_watermark | generate_watermarked_pdf failed: ' . $e->getMessage());
+            return false;
+        } finally {
+            if ($tempfile && file_exists($tempfile)) {
+                @unlink($tempfile);
+            }
         }
     }
-}
 
-// ---------------------------------------------------------------
-// Helper: extract Moodle stored logo to a temp file WITH extension.
-// Returns absolute path on success, null if no logo is stored.
-// Caller is responsible for unlinking AFTER $pdf->Output().
-// ---------------------------------------------------------------
-private static function get_logo_tmp_path(): ?string {
-    $fs      = get_file_storage();
-    $context = \context_system::instance();
+    // ── Watermark rendering ─────────────────────────────────────────────────
 
-    $files = $fs->get_area_files(
-        $context->id,
-        'local_watermark',
-        'logo',
-        0,                             // itemid=0 for committed configstoredfile records
-        'itemid, filepath, filename',
-        false                          // exclude directories
-    );
+    private static function apply_watermark(WatermarkPdf $pdf, \stdClass $user): void {
 
-    foreach ($files as $file) {
-        if ($file->get_filename() === '.') {
-            continue; // skip directory placeholder
+        $text  = self::build_watermark_text($user);
+        $pagew = $pdf->GetPageWidth();
+        $pageh = $pdf->GetPageHeight();
+
+        $cfg = static function (string $key, $default) {
+            $val = get_config('local_watermark', $key);
+            return ($val === false || $val === null || $val === '') ? $default : $val;
+        };
+
+        $hex2rgb = static function (string $hex): array {
+            $hex = ltrim($hex, '#');
+            if (strlen($hex) === 3) {
+                $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            }
+            return array_map('hexdec', str_split($hex, 2));
+        };
+
+        // ── 1. Full-page background overlay
+        $bgPath = __DIR__ . '/../../pix/background.png';
+        if (file_exists($bgPath)) {
+            try {
+                $bgAlpha = (float) $cfg('background_alpha', 0.15);
+                $pdf->_out('q');
+                $pdf->SetAlpha($bgAlpha);
+                $pdf->Image($bgPath, 0, 0, $pagew, $pageh, 'PNG');
+                $pdf->_out('Q');
+                $pdf->SetAlpha(1.0);
+            } catch (\Throwable $e) {
+                $pdf->_out('Q');
+                $pdf->SetAlpha(1.0);
+                error_log('local_watermark | background overlay failed: ' . $e->getMessage());
+            }
         }
 
-        $ext = strtolower(pathinfo($file->get_filename(), PATHINFO_EXTENSION));
+        // ── 2. Corner text
+        if ((bool) $cfg('corner_enabled', true)) {
+            $fontSize = (int)   $cfg('corner_fontsize',  10);
+            $colorHex = (string)$cfg('corner_textcolor', '#969696');
+            $margin   = (float) $cfg('corner_margin',    10);
+            $rgb      = $hex2rgb($colorHex);
 
-        // tempnam() produces a file WITHOUT extension — FPDF requires one.
-        // Strategy: create a uniquely-named temp file, then rename with extension.
-        $base = tempnam(sys_get_temp_dir(), 'wm_logo_');
-        if ($base === false) {
-            debugging('local_watermark: could not create temp file', DEBUG_DEVELOPER);
-            return null;
+            $pdf->SetFont('Helvetica', '', $fontSize);
+            $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
+            $pdf->SetAlpha(1.0);
+
+            $textWidth    = $pdf->GetStringWidth($text);
+            $fontHeightMm = $fontSize * 0.3528;
+
+            $rawCorners = $cfg('corner_positions', 'top-left,bottom-left,bottom-right,top-right');
+            $corners    = is_array($rawCorners)
+                ? array_keys(array_filter($rawCorners))
+                : array_map('trim', explode(',', $rawCorners));
+
+            foreach ($corners as $corner) {
+                switch ($corner) {
+                    case 'top-left':     $x = $margin; $y = $margin + $fontHeightMm; break;
+                    case 'top-right':    $x = $pagew - $textWidth - $margin; $y = $margin + $fontHeightMm; break;
+                    case 'bottom-left':  $x = $margin; $y = $pageh - $margin; break;
+                    case 'bottom-right': $x = $pagew - $textWidth - $margin; $y = $pageh - $margin; break;
+                    default: continue 2;
+                }
+                $pdf->Text($x, $y, $text);
+            }
         }
 
-        $tmpPath = $base . '.' . $ext;  // e.g. /tmp/wm_logo_A3f9B2.png
+        // ── 3. Diagonal watermark
+        if ((bool) $cfg('diagonal_enabled', true)) {
+            $fontSize = (int)   $cfg('diagonal_fontsize',  25);
+            $colorHex = (string)$cfg('diagonal_textcolor', '#C8C8C8');
+            $angle    = (int)   $cfg('diagonal_angle',     45);
+            $offsetX  = (float) $cfg('diagonal_offset_x',  0);
+            $offsetY  = (float) $cfg('diagonal_offset_y',  0);
+            $rgb      = $hex2rgb($colorHex);
 
-        $written = file_put_contents($tmpPath, $file->get_content());
+            $pdf->SetFont('Helvetica', 'B', $fontSize);
+            $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
+            $pdf->SetAlpha(1.0);
 
-        // Remove the original extensionless file left behind by tempnam().
-        @unlink($base);
+            $textWidth = $pdf->GetStringWidth($text);
+            $centerX   = ($pagew / 2) + $offsetX;
+            $centerY   = ($pageh / 2) + $offsetY;
 
-        if ($written === false || $written === 0) {
-            @unlink($tmpPath);
-            debugging('local_watermark: failed to write logo temp file', DEBUG_DEVELOPER);
-            return null;
+            $pdf->Rotate($angle, $centerX, $centerY);
+            $pdf->Text($centerX - ($textWidth / 2), $centerY, $text);
+            $pdf->Rotate(0, $centerX, $centerY);
         }
 
-        return $tmpPath; // return on first valid file
+        // ── 4. Logo
+        if (!(bool) $cfg('logo_enabled', false)) {
+            return;
+        }
+
+        $logoWidth  = (float)  $cfg('logo_width',    15);
+        $logoMargin = (float)  $cfg('logo_margin',   10);
+        $logoPos    = (string) $cfg('logo_position', 'top-right');
+
+        switch ($logoPos) {
+            case 'top-left':     $xLogo = $logoMargin; $yLogo = $logoMargin; break;
+            case 'bottom-left':  $xLogo = $logoMargin; $yLogo = $pageh - $logoWidth - $logoMargin; break;
+            case 'bottom-right': $xLogo = $pagew - $logoWidth - $logoMargin; $yLogo = $pageh - $logoWidth - $logoMargin; break;
+            case 'top-right':
+            default:             $xLogo = $pagew - $logoWidth - $logoMargin; $yLogo = $logoMargin; break;
+        }
+
+        $pdf->SetAlpha(1.0);
+
+        $logoPath = self::get_logo_tmp_path() ?? (__DIR__ . '/../../pix/logo.png');
+
+        if ($logoPath && file_exists($logoPath)) {
+            try {
+                $type = null;
+
+                // Safely detect MIME type, as Moodle temp files drop their extensions
+                $info = @getimagesize($logoPath);
+                if ($info) {
+                    $typeMap = [
+                        IMAGETYPE_PNG => 'PNG',
+                        IMAGETYPE_JPEG => 'JPEG',
+                        IMAGETYPE_GIF => 'GIF'
+                    ];
+                    $type = $typeMap[$info[2]] ?? null;
+                }
+                
+                // Fallback to extension check if getimagesize fails
+                if (!$type) {
+                    $ext = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
+                    $extMap = ['png' => 'PNG', 'jpg' => 'JPEG', 'jpeg' => 'JPEG', 'gif' => 'GIF'];
+                    $type = $extMap[$ext] ?? null;
+                }
+
+                if ($type === null) {
+                    throw new \RuntimeException("Unsupported logo format.");
+                }
+
+                $pdf->Image($logoPath, $xLogo, $yLogo, $logoWidth, 0, $type);
+            } catch (\Throwable $e) {
+                error_log('local_watermark | logo render failed: ' . $e->getMessage());
+            }
+        }
     }
 
-    return null; // no logo uploaded
-}
-    /**
-     * Build the watermark text from the admin template.
-     *
-     * @param \stdClass $user User object.
-     * @return string
-     */
-    private static function build_watermark_text($user) {
-    $template = get_config('local_watermark', 'template');
-    if (empty($template)) {
-        $template = 'User: {username} | ID: {userid}';
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static function build_watermark_text(\stdClass $user): string {
+        $template = get_config('local_watermark', 'template');
+        if (empty($template)) {
+            $template = 'User: {username} | ID: {userid}';
+        }
+
+        $usertimezone  = \core_date::get_user_timezone($user);
+        $datetime      = new \DateTime('now', new \DateTimeZone($usertimezone));
+        $formattedtime = $datetime->format('Y-m-d H:i');
+
+        $replacements = [
+            '{username}'  => (string) ($user->username  ?? ''),
+            '{userid}'    => (string) ($user->id        ?? ''),
+            '{email}'     => (string) ($user->email     ?? ''),
+            '{firstname}' => (string) ($user->firstname ?? ''),
+            '{lastname}'  => (string) ($user->lastname  ?? ''),
+            '{time}'      => $formattedtime,
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $template);
     }
 
-    // Leading backslash = global Moodle class, not the local namespace.
-    $usertimezone  = \core_date::get_user_timezone($user);
-    $datetime      = new \DateTime('now', new \DateTimeZone($usertimezone));
-    $datetime->modify('+1 hour');
-    $formattedtime = $datetime->format('Y-m-d H:i');
+    private static function get_logo_tmp_path(): ?string {
+        $fs      = get_file_storage();
+        $context = \context_system::instance();
+        $files   = $fs->get_area_files(
+            $context->id,
+            'local_watermark',
+            'logo',
+            0,
+            'id DESC',
+            false
+        );
 
-    $replacements = [
-        '{username}'  => $user->username,
-        '{userid}'    => $user->id,
-        '{email}'     => $user->email,
-        '{firstname}' => $user->firstname,
-        '{lastname}'  => $user->lastname,
-        '{time}'      => $formattedtime,
-    ];
+        foreach ($files as $f) {
+            return $f->copy_content_to_temp();
+        }
 
-    return str_replace(array_keys($replacements), array_values($replacements), $template);
-}
+        return null;
+    }
 
-    /**
-     * Output the PDF content to the browser.
-     *
-     * @param string $content PDF raw data.
-     * @param string $originalfilename Original file name (for download).
-     */
-    private static function output($content, $originalfilename) {
+    private static function output_pdf(string $content, string $originalfilename): void {
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
         header('Content-Type: application/pdf');
-        header('Content-Disposition: inline; filename="watermarked_' . $originalfilename . '"');
+        header('Content-Disposition: inline; filename="watermarked_' . rawurlencode($originalfilename) . '"');
         header('Content-Length: ' . strlen($content));
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+
         echo $content;
         exit;
     }
 
-    /**
-     * Serve the original file without watermarking.
-     *
-     * @param \stored_file $file
-     */
-    private static function serve_original($file) {
-        send_stored_file($file);
+    private static function serve_original(\stored_file $file): void {
+        send_stored_file($file, 0, 0, true);
     }
 }
