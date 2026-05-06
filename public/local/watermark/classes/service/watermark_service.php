@@ -379,22 +379,28 @@ private static function get_logo_tmp_path(): ?string {
      * @return string
      */
     private static function build_watermark_text($user) {
-        $template = get_config('local_watermark', 'template');
-        if (empty($template)) {
-            $template = 'User: {username} | ID: {userid}';
-        }
-
-        $replacements = [
-            '{username}'  => $user->username,
-            '{userid}'    => $user->id,
-            '{email}'     => $user->email,
-            '{firstname}' => $user->firstname,
-            '{lastname}'  => $user->lastname,
-            '{time}'      => userdate(time()),
-        ];
-
-        return str_replace(array_keys($replacements), array_values($replacements), $template);
+    $template = get_config('local_watermark', 'template');
+    if (empty($template)) {
+        $template = 'User: {username} | ID: {userid}';
     }
+
+    // Leading backslash = global Moodle class, not the local namespace.
+    $usertimezone  = \core_date::get_user_timezone($user);
+    $datetime      = new \DateTime('now', new \DateTimeZone($usertimezone));
+    $datetime->modify('+1 hour');
+    $formattedtime = $datetime->format('Y-m-d H:i');
+
+    $replacements = [
+        '{username}'  => $user->username,
+        '{userid}'    => $user->id,
+        '{email}'     => $user->email,
+        '{firstname}' => $user->firstname,
+        '{lastname}'  => $user->lastname,
+        '{time}'      => $formattedtime,
+    ];
+
+    return str_replace(array_keys($replacements), array_values($replacements), $template);
+}
 
     /**
      * Output the PDF content to the browser.
