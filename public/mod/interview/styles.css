@@ -1,0 +1,6 @@
+#interview-container .card {
+    margin-top: 20px;
+}
+#progress-bar {
+    transition: width 0.5s ease;
+}

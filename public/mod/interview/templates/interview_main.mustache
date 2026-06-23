@@ -1,0 +1,46 @@
+<div id="interview-container" data-cmid="{{cmid}}" data-sesskey="{{sesskey}}">
+    {{#intro}}
+    <div class="alert alert-info">{{{intro}}}</div>
+    {{/intro}}
+
+    {{! Not started state }}
+    <div class="card" id="state-start">
+        <div class="card-body">
+            <h5 class="card-title">{{#str}}startinterview, mod_interview{{/str}}</h5>
+            <div class="mb-3">
+                <label for="cvfile" class="form-label">{{#str}}uploadcv, mod_interview{{/str}}</label>
+                <input type="file" class="form-control" id="cvfile" accept=".pdf,.docx">
+            </div>
+            <button class="btn btn-primary" id="btn-start">Start Interview</button>
+        </div>
+    </div>
+
+    {{! Interview in progress }}
+    <div class="card d-none" id="state-interview">
+        <div class="card-header">
+            <div class="progress" style="height: 25px;">
+                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                     style="width: 0%">0%</div>
+            </div>
+        </div>
+        <div class="card-body">
+            <h4 class="card-title" id="question-text"></h4>
+            <div class="mb-3">
+                <textarea id="answer-text" class="form-control" rows="4"
+                          placeholder="{{#str}}youranswer, mod_interview{{/str}}"></textarea>
+            </div>
+            <button class="btn btn-success" id="btn-answer">{{#str}}submitanswer, mod_interview{{/str}}</button>
+        </div>
+    </div>
+
+    {{! Completed state }}
+    <div class="card d-none" id="state-completed">
+        <div class="card-body text-center">
+            <h3 class="text-success">{{#str}}interviewcomplete, mod_interview{{/str}}</h3>
+            <div class="alert alert-primary mt-3" id="evaluation-text"></div>
+        </div>
+    </div>
+
+    {{! Error display }}
+    <div id="error-alert" class="alert alert-danger d-none mt-3"></div>
+</div>
