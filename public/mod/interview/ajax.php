@@ -46,64 +46,78 @@ try {
         exit;
     }
 
-    if ($action === 'answer') {
-        $answer = required_param('answer', PARAM_TEXT);
+if ($action === 'answer') {
 
-        $session = $DB->get_record('interview_sessions', [
-            'interviewid' => $interview->id,
-            'userid' => $USER->id
-        ]);
+    $answer = required_param('answer', PARAM_TEXT);
 
-        if (!$session) {
-            throw new moodle_exception('nosession', 'mod_interview');
-        }
+    $session = $DB->get_record('interview_sessions', [
+        'interviewid' => $interview->id,
+        'userid' => $USER->id
+    ]);
 
-        if ($session->status !== 'in_progress') {
-            throw new moodle_exception('nosession', 'mod_interview');
-        }
-
-        $data = interview_api_answer($apiurl, $session->session_id, $answer);
-
-       if (!empty($data['is_finished'])) {
-
-    $response['status'] = 'completed';
-    $response['evaluation'] = $data['final_evaluation'] ?? null;
-
-    // 1. END SESSION IN FASTAPI (IMPORTANT FIX)
-    try {
-        interview_api_end($apiurl, $session->session_id);
-    } catch (Exception $e) {
-        error_log("Failed to end FastAPI session: " . $e->getMessage());
+    if (!$session || $session->status !== 'in_progress') {
+        throw new moodle_exception('nosession', 'mod_interview');
     }
 
-    // 2. UPDATE OR DELETE LOCAL SESSION
-    $DB->set_field(
-        'interview_sessions',
-        'status',
-        'completed',
-        ['id' => $session->id]
-    );
+    $data = interview_api_answer($apiurl, $session->session_id, $answer);
 
-    $DB->set_field(
-        'interview_sessions',
-        'timemodified',
-        time(),
-        ['id' => $session->id]
-    );
-}
+    // =========================
+    // ONLY ONE OUTPUT PATH
+    // =========================
+    if (!empty($data['is_finished'])) {
+
+        interview_api_end($apiurl, $session->session_id);
+
+        $DB->set_field('interview_sessions', 'status', 'completed', [
+            'id' => $session->id
+        ]);
 
         echo json_encode([
-            'status' => 'in_progress',
-            'question' => $data['next_question'] ?? ''
+            'status' => 'completed',
+            'evaluation' => $data['final_evaluation'] ?? null
         ]);
         exit;
     }
+
+    // IMPORTANT: force in_progress only if NOT finished
+    echo json_encode([
+        'status' => 'in_progress',
+        'question' => $data['next_question'] ?? '',
+        'is_finished' => false
+    ]);
+    exit;
+}
+
+    if ($action === 'restart') {
+
+    $session = $DB->get_record('interview_sessions', [
+        'interviewid' => $interview->id,
+        'userid' => $USER->id
+    ]);
+
+    // 1. End remote session if exists
+    if ($session) {
+        try {
+            interview_api_end($apiurl, $session->session_id);
+        } catch (Exception $e) {
+            error_log($e->getMessage());
+        }
+
+        // 2. delete local session
+        $DB->delete_records('interview_sessions', ['id' => $session->id]);
+    }
+
+    echo json_encode([
+        'status' => 'not_started'
+    ]);
+    exit;
+}
 
     if ($action === 'state') {
         $session = $DB->get_record('interview_sessions', [
             'interviewid' => $interview->id,
             'userid' => $USER->id
-        ]);
+        ], '*', IGNORE_MISSING);
 
         if (!$session) {
             echo json_encode(['status' => 'not_started']);
@@ -118,11 +132,17 @@ try {
         $session = $DB->get_record('interview_sessions', [
             'interviewid' => $interview->id,
             'userid' => $USER->id
-        ]);
+        ], '*', IGNORE_MISSING);
 
-        if ($session) {
-            interview_api_end($apiurl, $session->session_id);
-            $DB->delete_records('interview_sessions', ['id' => $session->id]);
+        if ($session && $session->status === 'in_progress') {
+            try {
+                interview_api_end($apiurl, $session->session_id);
+            } catch (Throwable $cleanupError) {
+                error_log('Failed to end FastAPI session: ' . $cleanupError->getMessage());
+            }
+
+            $DB->set_field('interview_sessions', 'status', 'completed', ['id' => $session->id]);
+            $DB->set_field('interview_sessions', 'timemodified', time(), ['id' => $session->id]);
         }
 
         echo json_encode(['status' => 'ended']);

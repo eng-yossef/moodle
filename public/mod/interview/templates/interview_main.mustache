@@ -1,46 +1,101 @@
-<div id="interview-container" data-cmid="{{cmid}}" data-sesskey="{{sesskey}}">
+<div id="interview-container" data-cmid="{{cmid}}" data-sesskey="{{sesskey}}" data-initial-status="{{status}}">
+
     {{#intro}}
-    <div class="alert alert-info">{{{intro}}}</div>
+    <div class="alert alert-info alert-dismissible fade show mb-4">{{{intro}}}</div>
     {{/intro}}
 
-    {{! Not started state }}
-    <div class="card" id="state-start">
-        <div class="card-body">
-            <h5 class="card-title">{{#str}}startinterview, mod_interview{{/str}}</h5>
+<!-- ==================== START STATE ==================== -->
+<div id="state-start" class="{{#status}}d-none{{/status}}">
+    <div class="card shadow-sm border-0">
+        <div class="card-body text-center py-5">
+            <div class="display-1 mb-4 text-primary">
+                <i class="fa fa-regular fa-comment-dots"></i>
+            </div>
+            <h3 class="card-title mb-3">{{#str}}startinterview, mod_interview{{/str}}</h3>
+            <p class="text-muted mb-4">Upload your CV to begin the AI-powered interview.</p>
+
+            <!-- File upload area -->
+            <div class="mb-4 p-4 border border-2 border-dashed rounded-3 bg-light" id="dropzone" style="cursor: pointer; transition: all 0.2s;">
+                <i class="fa fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                <p class="mb-1"><strong>Click or drag &amp; drop</strong> your CV here</p>
+                <small class="text-muted">Supported: PDF, DOCX</small>
+                <input type="file" class="d-none" id="cvfile" accept=".pdf,.docx">
+            </div>
+
+            <!-- Explicit file chooser button (fallback) -->
             <div class="mb-3">
-                <label for="cvfile" class="form-label">{{#str}}uploadcv, mod_interview{{/str}}</label>
-                <input type="file" class="form-control" id="cvfile" accept=".pdf,.docx">
+                <button type="button" class="btn btn-outline-secondary" id="choose-file-btn">
+                    <i class="fa fa-folder-open me-2"></i>Choose file
+                </button>
+                <span id="file-name-display" class="ms-2 text-muted">No file selected</span>
             </div>
-            <button class="btn btn-primary" id="btn-start">Start Interview</button>
+
+            <button class="btn btn-primary btn-lg px-5" id="btn-start">
+                <i class="fa fa-play me-2"></i>Start Interview
+            </button>
+        </div>
+    </div>
+</div>
+    <!-- ==================== INTERVIEW IN PROGRESS ==================== -->
+    <div id="state-interview" class="d-none">
+        <div class="card shadow-sm border-0">
+            <!-- Progress header -->
+            <div class="card-header bg-white py-2 d-flex align-items-center justify-content-between">
+                <span class="fw-bold">
+                    <i class="fa fa-regular fa-circle-check text-success me-2"></i>
+                    Progress
+                </span>
+                <span id="question-counter" class="badge bg-primary rounded-pill">0 / 5</span>
+            </div>
+            <div class="progress rounded-0" style="height: 6px;">
+                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+            </div>
+
+            <!-- Chat messages area -->
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;" id="chat-messages">
+                <!-- Messages will be injected here -->
+                <div id="message-list" class="p-3"></div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div id="typing-indicator" class="px-3 py-2 d-none">
+                <span class="badge bg-light text-muted">
+                    <i class="fa fa-circle text-primary me-1" style="font-size: 8px;"></i>
+                    <i class="fa fa-circle text-primary me-1" style="font-size: 8px; animation-delay: 0.2s;"></i>
+                    <i class="fa fa-circle text-primary me-1" style="font-size: 8px; animation-delay: 0.4s;"></i>
+                    Interviewer is typing…
+                </span>
+            </div>
+
+            <!-- Answer input area -->
+            <div class="card-footer bg-white border-top-0">
+                <div class="input-group">
+                    <textarea id="answer-text" class="form-control" rows="2" placeholder="{{#str}}youranswer, mod_interview{{/str}}" style="resize: none;"></textarea>
+                    <button class="btn btn-success" id="btn-answer">
+                        <i class="fa fa-paper-plane"></i> Send
+                    </button>
+                </div>
+                <small class="text-muted">Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</small>
+            </div>
         </div>
     </div>
 
-    {{! Interview in progress }}
-    <div class="card d-none" id="state-interview">
-        <div class="card-header">
-            <div class="progress" style="height: 25px;">
-                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
-                     style="width: 0%">0%</div>
+    <!-- ==================== COMPLETED STATE ==================== -->
+    <div id="state-completed" class="d-none">
+        <div class="card shadow-sm border-0 text-center py-5">
+            <div class="card-body">
+                <div class="display-2 text-success mb-4">
+                    <i class="fa fa-regular fa-circle-check"></i>
+                </div>
+                <h3 class="card-title">{{#str}}interviewcomplete, mod_interview{{/str}}</h3>
+                <div class="alert alert-primary mt-4 text-start" id="evaluation-text"></div>
+                <button class="btn btn-outline-secondary mt-3" id="btn-restart">
+                    <i class="fa fa-rotate-right me-2"></i>Start Over
+                </button>
             </div>
-        </div>
-        <div class="card-body">
-            <h4 class="card-title" id="question-text"></h4>
-            <div class="mb-3">
-                <textarea id="answer-text" class="form-control" rows="4"
-                          placeholder="{{#str}}youranswer, mod_interview{{/str}}"></textarea>
-            </div>
-            <button class="btn btn-success" id="btn-answer">{{#str}}submitanswer, mod_interview{{/str}}</button>
         </div>
     </div>
 
-    {{! Completed state }}
-    <div class="card d-none" id="state-completed">
-        <div class="card-body text-center">
-            <h3 class="text-success">{{#str}}interviewcomplete, mod_interview{{/str}}</h3>
-            <div class="alert alert-primary mt-3" id="evaluation-text"></div>
-        </div>
-    </div>
-
-    {{! Error display }}
+    <!-- Error alert -->
     <div id="error-alert" class="alert alert-danger d-none mt-3"></div>
 </div>

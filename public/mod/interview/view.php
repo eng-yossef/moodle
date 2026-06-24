@@ -15,15 +15,21 @@ require_capability('mod/interview:view', $context);
 $PAGE->set_url('/mod/interview/view.php', ['id' => $cm->id]);
 $PAGE->set_title(format_string($interview->name));
 $PAGE->set_heading(format_string($course->fullname));
-
+$PAGE->requires->css('/mod/interview/styles.css');
 echo $OUTPUT->header();
 
 $session = $DB->get_record('interview_sessions', [
     'interviewid' => $interview->id,
     'userid' => $USER->id
 ]);
+if (!$session) {
+    $status = 'not_started';
+} else if ($session->status === 'completed') {
+    $status = 'not_started'; // IMPORTANT FIX
+} else {
+    $status = 'in_progress';
+}
 
-$status = $session ? $session->status : 'not_started';
 $intro = format_module_intro('interview', $interview, $cm->id);
 
 $data = [
