@@ -15,6 +15,7 @@ define(['jquery'], function($) {
             var typingIndicator = $('#typing-indicator');
             var questionCounter = $('#question-counter');
             var progressBar = $('#progress-bar');
+            var loadingOverlay = $('#loading-overlay');
 
             var currentStatus = container.data('initial-status') || 'not_started';
             var questionCount = 0;
@@ -26,9 +27,23 @@ define(['jquery'], function($) {
             var cleanupSent = false;
 
             /**
-             * Show an error message and auto-hide after 5 seconds.
+             * Show the loading overlay.
+             */
+            function showOverlay() {
+                loadingOverlay.show();
+            }
+
+            /**
+             * Hide the loading overlay.
+             */
+            function hideOverlay() {
+                loadingOverlay.hide();
+            }
+
+            /**
+             * Display an error message that auto-hides after 5 seconds.
              *
-             * @param {string} msg The error message to display.
+             * @param {string} msg The error message text.
              */
             function showError(msg) {
                 errorAlert.text(msg).removeClass('d-none');
@@ -45,9 +60,9 @@ define(['jquery'], function($) {
             }
 
             /**
-             * Set the current UI state.
+             * Switch the visible UI state.
              *
-             * @param {string} state One of 'not_started', 'in_progress', 'completed'.
+             * @param {string} state One of 'not_started', 'in_progress', or 'completed'.
              */
             function setState(state) {
                 stateStart.addClass('d-none');
@@ -64,9 +79,9 @@ define(['jquery'], function($) {
             }
 
             /**
-             * Update the progress bar and counter.
+             * Update the progress bar and question counter.
              *
-             * @param {number} count Number of answered questions.
+             * @param {number} count The number of answered questions.
              */
             function updateProgress(count) {
                 var pct = Math.min(100, Math.floor((count / totalQuestions) * 100));
@@ -75,10 +90,10 @@ define(['jquery'], function($) {
             }
 
             /**
-             * Append a chat message to the message list.
+             * Add a chat message to the conversation display.
              *
              * @param {string} text The message text.
-             * @param {string} type Either 'question' or 'answer'.
+             * @param {string} type 'question' or 'answer'.
              */
             function addMessage(text, type) {
                 var isQuestion = (type === 'question');
@@ -109,7 +124,7 @@ define(['jquery'], function($) {
             /**
              * Show or hide the typing indicator.
              *
-             * @param {boolean} show Whether to show the indicator.
+             * @param {boolean} show True to show the indicator, false to hide.
              */
             function showTyping(show) {
                 if (show) {
@@ -120,9 +135,9 @@ define(['jquery'], function($) {
             }
 
             /**
-             * Finalize the interview UI after completion.
+             * Finalize the UI after the interview is completed.
              *
-             * @param {Object|null} evaluation The evaluation data or null if not available.
+             * @param {Object|null} evaluation The evaluation object containing level and feedback.
              */
             function finalizeInterviewUI(evaluation) {
                 interviewEnded = true;
@@ -141,7 +156,7 @@ define(['jquery'], function($) {
             }
 
             /**
-             * Reset UI for a fresh attempt.
+             * Reset all UI elements and internal state for a fresh interview attempt.
              */
             function resetInterviewUI() {
                 currentStatus = 'not_started';
@@ -255,6 +270,7 @@ define(['jquery'], function($) {
                 hideError();
                 requestInFlight = true;
                 showTyping(true);
+                showOverlay();
 
                 var formData = new FormData();
                 formData.append('action', 'start');
@@ -269,6 +285,7 @@ define(['jquery'], function($) {
                     });
 
                     var data = await response.json();
+                    hideOverlay();
                     showTyping(false);
                     requestInFlight = false;
 
@@ -294,16 +311,16 @@ define(['jquery'], function($) {
 
                     showError('Unexpected response.');
                 } catch (error) {
+                    hideOverlay();
                     showTyping(false);
                     requestInFlight = false;
                     showError('Network error. Please try again.');
-                    // console.error('Start interview error:', error);
                 }
             });
 
-            // ---- Send the user's answer to the server ----
+            // ---- Send the user's answer ----
             /**
-             * Send the user's answer to the server and handle the response.
+             * Send the user's answer to the server and process the response.
              */
             function sendAnswer() {
                 if (requestInFlight || interviewEnded) {
@@ -321,6 +338,7 @@ define(['jquery'], function($) {
                 $('#answer-text').val('');
                 showTyping(true);
                 requestInFlight = true;
+                // showOverlay();
 
                 var params = new URLSearchParams();
                 params.append('action', 'answer');
@@ -337,13 +355,11 @@ define(['jquery'], function($) {
                 })
                 .then(function(response) {
                     return response.json().then(function(data) {
-                        return {
-                            ok: response.ok,
-                            data: data
-                        };
+                        return { ok: response.ok, data: data };
                     });
                 })
                 .then(function(result) {
+                    // hideOverlay();
                     showTyping(false);
                     requestInFlight = false;
 
@@ -372,10 +388,10 @@ define(['jquery'], function($) {
                     showError('Unexpected server response.');
                 })
                 .catch(function() {
+                    hideOverlay();
                     showTyping(false);
                     requestInFlight = false;
                     showError('Network error. Please try again.');
-                    // console.error('Answer error:', error);
                 });
             }
 
@@ -395,6 +411,7 @@ define(['jquery'], function($) {
                 }
 
                 requestInFlight = true;
+                showOverlay();
 
                 try {
                     var res = await fetch(ajaxUrl, {
@@ -410,6 +427,7 @@ define(['jquery'], function($) {
                     });
 
                     var data = await res.json();
+                    hideOverlay();
                     requestInFlight = false;
 
                     if (!res.ok || data.error) {
@@ -419,6 +437,7 @@ define(['jquery'], function($) {
 
                     resetInterviewUI();
                 } catch (e) {
+                    hideOverlay();
                     requestInFlight = false;
                     showError('Failed to restart interview.');
                 }

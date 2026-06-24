@@ -1,41 +1,59 @@
 <div id="interview-container" data-cmid="{{cmid}}" data-sesskey="{{sesskey}}" data-initial-status="{{status}}">
 
+    <!-- Loading overlay -->
+    <div id="loading-overlay" style="display:none;">
+        <div class="cvinterview-spinner">
+            <div class="sailing-container">
+                <img
+                    src="{{config.wwwroot}}/mod/interview/pix/boat-logo.png"
+                    class="sailing-boat"
+                    alt="Loading">
+                <div class="wave wave1"></div>
+                <div class="wave wave2"></div>
+            </div>
+            <p class="mt-2 mb-0 fw-bold">
+                Preparing Your AI Interview...
+            </p>
+        </div>
+    </div>
+
     {{#intro}}
     <div class="alert alert-info alert-dismissible fade show mb-4">{{{intro}}}</div>
     {{/intro}}
 
-<!-- ==================== START STATE ==================== -->
-<div id="state-start" class="{{#status}}d-none{{/status}}">
-    <div class="card shadow-sm border-0">
-        <div class="card-body text-center py-5">
-            <div class="display-1 mb-4 text-primary">
-                <i class="fa fa-regular fa-comment-dots"></i>
-            </div>
-            <h3 class="card-title mb-3">{{#str}}startinterview, mod_interview{{/str}}</h3>
-            <p class="text-muted mb-4">Upload your CV to begin the AI-powered interview.</p>
+    <!-- ==================== START STATE ==================== -->
+    <div id="state-start" class="{{#status}}d-none{{/status}}">
+        <div class="card shadow-sm border-0">
+            <div class="card-body text-center py-5">
+                <div class="display-1 mb-4 text-primary">
+                    <i class="fa fa-regular fa-comment-dots"></i>
+                </div>
+                <h3 class="card-title mb-3">{{#str}}startinterview, mod_interview{{/str}}</h3>
+                <p class="text-muted mb-4">Upload your CV to begin the AI-powered interview.</p>
 
-            <!-- File upload area -->
-            <div class="mb-4 p-4 border border-2 border-dashed rounded-3 bg-light" id="dropzone" style="cursor: pointer; transition: all 0.2s;">
-                <i class="fa fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
-                <p class="mb-1"><strong>Click or drag &amp; drop</strong> your CV here</p>
-                <small class="text-muted">Supported: PDF, DOCX</small>
-                <input type="file" class="d-none" id="cvfile" accept=".pdf,.docx">
-            </div>
+                <!-- File upload area -->
+                <div class="mb-4 p-4 border border-2 border-dashed rounded-3 bg-light" id="dropzone" style="cursor: pointer; transition: all 0.2s;">
+                    <i class="fa fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                    <p class="mb-1"><strong>Click or drag &amp; drop</strong> your CV here</p>
+                    <small class="text-muted">Supported: PDF, DOCX</small>
+                    <input type="file" class="d-none" id="cvfile" accept=".pdf,.docx">
+                </div>
 
-            <!-- Explicit file chooser button (fallback) -->
-            <div class="mb-3">
-                <button type="button" class="btn btn-outline-secondary" id="choose-file-btn">
-                    <i class="fa fa-folder-open me-2"></i>Choose file
+                <!-- Explicit file chooser button (fallback) -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-outline-secondary" id="choose-file-btn">
+                        <i class="fa fa-folder-open me-2"></i>Choose file
+                    </button>
+                    <span id="file-name-display" class="ms-2 text-muted">No file selected</span>
+                </div>
+
+                <button class="btn btn-primary btn-lg px-5" id="btn-start">
+                    <i class="fa fa-play me-2"></i>Start Interview
                 </button>
-                <span id="file-name-display" class="ms-2 text-muted">No file selected</span>
             </div>
-
-            <button class="btn btn-primary btn-lg px-5" id="btn-start">
-                <i class="fa fa-play me-2"></i>Start Interview
-            </button>
         </div>
     </div>
-</div>
+
     <!-- ==================== INTERVIEW IN PROGRESS ==================== -->
     <div id="state-interview" class="d-none">
         <div class="card shadow-sm border-0">
@@ -53,7 +71,6 @@
 
             <!-- Chat messages area -->
             <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;" id="chat-messages">
-                <!-- Messages will be injected here -->
                 <div id="message-list" class="p-3"></div>
             </div>
 

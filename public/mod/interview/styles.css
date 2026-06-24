@@ -71,3 +71,84 @@
 #dropzone.bg-primary-subtle {
     background-color: #cfe2ff !important;
 }
+
+
+#loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.95);
+    z-index: 99999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.cvinterview-spinner {
+    text-align: center;
+}
+
+.sailing-container {
+    position: relative;
+    width: 220px;
+    height: 220px;
+}
+
+.sailing-boat {
+    width: 320px;
+    position: absolute;
+    left: 50%;
+    top: 60px;
+    transform: translateX(-50%);
+    animation: sail 3s ease-in-out infinite;
+}
+
+.wave {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    width: 220px;
+    height: 20px;
+    border-radius: 50%;
+    transform: translateX(-50%);
+}
+
+.wave1 {
+    border-bottom: 5px solid #3fa9f5;
+    animation: waveMove 2s linear infinite;
+}
+
+.wave2 {
+    border-bottom: 5px solid #87cefa;
+    bottom: 18px;
+    animation: waveMove 1.5s linear infinite reverse;
+}
+
+@keyframes sail {
+    0% {
+        transform: translateX(-50%) translateY(0) rotate(-2deg);
+    }
+    25% {
+        transform: translateX(-50%) translateY(-8px) rotate(2deg);
+    }
+    50% {
+        transform: translateX(-50%) translateY(0) rotate(-2deg);
+    }
+    75% {
+        transform: translateX(-50%) translateY(-8px) rotate(2deg);
+    }
+    100% {
+        transform: translateX(-50%) translateY(0) rotate(-2deg);
+    }
+}
+
+@keyframes waveMove {
+    0% {
+        transform: translateX(-50%) translateX(-10px);
+    }
+    50% {
+        transform: translateX(-50%) translateX(10px);
+    }
+    100% {
+        transform: translateX(-50%) translateX(-10px);
+    }
+}
