@@ -8,13 +8,21 @@ require_once($CFG->libdir . '/formslib.php');
 class generate_form extends \moodleform {
     public function definition() {
         $mform = $this->_form;
-        $courseid = $this->_customdata['courseid'];
+        
+        // Retrieve the IDs passed from index.php via customdata
+        $courseid   = $this->_customdata['courseid'] ?? 0;
+        $categoryid = $this->_customdata['categoryid'] ?? 0;
 
-        // Hidden course ID.
-        $mform->addElement('hidden', 'courseid', $courseid);
+        // CRITICAL FIX: Add hidden fields to preserve these IDs during form submission
+        $mform->addElement('hidden', 'courseid');
         $mform->setType('courseid', PARAM_INT);
+        $mform->setDefault('courseid', $courseid);
 
-        // File upload – context is not needed for draft files.
+        $mform->addElement('hidden', 'categoryid');
+        $mform->setType('categoryid', PARAM_INT);
+        $mform->setDefault('categoryid', $categoryid);
+
+        // File upload
         $mform->addElement('filepicker', 'file', get_string('upload_file', 'local_aicoursegen'), null, [
             'accepted_types' => ['.pdf', '.ppt', '.pptx'],
             'maxbytes' => 50 * 1024 * 1024,
