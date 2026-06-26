@@ -9,13 +9,11 @@ global $DB, $USER;
 $courseid = required_param('courseid', PARAM_INT);
 
 $records = $DB->get_records_sql("
-    SELECT question, answer
+    SELECT id, question, answer
     FROM {local_coptutor_qa}
     WHERE userid = ? AND courseid = ?
     ORDER BY id DESC
-    LIMIT 5
 ", [$USER->id, $courseid]);
 
-$records = array_reverse($records); // show oldest first
-
+$records = array_reverse($records);   // oldest first
 echo json_encode(array_values($records));

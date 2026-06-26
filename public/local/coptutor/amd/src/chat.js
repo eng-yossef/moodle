@@ -147,7 +147,7 @@ define(['jquery'], function($) {
             const hasSpeechRecognition = !!SpeechRecognition;
             const hasSpeechSynthesis = 'speechSynthesis' in window;
             let recognition = null;
-            let historyLoaded = false;
+            // let historyLoaded = false;
 
             // Toggle states
             let voiceEnabled = true;
@@ -364,18 +364,15 @@ define(['jquery'], function($) {
             });
 
             $('#ai-chat-icon').on('click', function() {
-                const $win = $('#ai-chat-window');
-                if ($win.is(':visible')) {
-                    $win.fadeOut(200);
-                } else {
-                    $win.css('display', 'flex').hide().fadeIn(200);
-                    if (!historyLoaded) {
-                        loadHistory();
-                        loadMaterials();
-                        historyLoaded = true;
-                    }
-                }
-            });
+    const $win = $('#ai-chat-window');
+    if ($win.is(':visible')) {
+        $win.fadeOut(200);
+    } else {
+        $win.css('display', 'flex').hide().fadeIn(200);
+        loadHistory();          // always reload
+        loadMaterials();        // always reload
+    }
+});
 
             $('#close-chat').on('click', function() {
                 $('#ai-chat-window').fadeOut(200);
@@ -394,7 +391,7 @@ define(['jquery'], function($) {
             // Load history & materials immediately
             loadHistory();
             loadMaterials();
-            historyLoaded = true;
+            // historyLoaded = true;
 
             // Init toggle UI
             updateVoiceToggleUI();
